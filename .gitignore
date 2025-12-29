@@ -32,3 +32,5 @@ out/
 ## OS Specific
 .DS_Store
 Thumbs.db
+
+appsettings.Development.json
