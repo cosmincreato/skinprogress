@@ -1,0 +1,34 @@
+## .NET Specific
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+
+## JetBrains Rider / IntelliJ Specific
+.idea/
+*.sln.iml
+
+## User-specific files
+*.user
+*.userosscache
+*.sln.docuser
+
+## Visual Studio Specific
+.vs/
+.vs-*
+[Tt]est[Rr]esults/
+*.suo
+*.user
+*.userosscache
+*.sln.docuser
+
+## Databases (Docker handles this, but ignore local MDF/LDF if any)
+*.mdf
+*.ldf
+*.db-shm
+*.db-wal
+
+## OS Specific
+.DS_Store
+Thumbs.db
