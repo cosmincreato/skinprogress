@@ -1,3 +1,12 @@
-﻿namespace SkinProgress.Models.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
 
-public record LoginDto(string Email, string Password);
+namespace SkinProgress.Models.DTOs;
+
+public record LoginDto(
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email format")]
+    string Email,
+    
+    [Required(ErrorMessage = "Password is required")]
+    string Password
+);

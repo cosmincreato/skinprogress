@@ -34,3 +34,9 @@ out/
 Thumbs.db
 
 appsettings.Development.json
+appsettings.Local.json
+
+## User Uploads
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/default.png
+!**/wwwroot/uploads/.gitkeep
