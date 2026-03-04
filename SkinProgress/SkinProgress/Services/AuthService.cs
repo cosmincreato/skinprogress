@@ -141,7 +141,7 @@ public class AuthService : IAuthService
         var user = await _context.Users.FindAsync(Guid.Parse(userId));
         if (user == null) return null;
 
-        return new UserDto(user.Id, user.Email, user.Username, user.Role, user.SkinType, user.ProfilePictureUrl, user.CreatedAt);
+        return new UserDto(user.Id, user.Email, user.Username, user.Role, user.SkinType, user.ProfilePictureUrl, user.CreatedAt, user.LastSelfieAt);
     }
 
     private string GenerateJwtToken(User user)

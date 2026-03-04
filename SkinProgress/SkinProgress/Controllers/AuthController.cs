@@ -21,14 +21,18 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register(RegisterDto dto)
     {
         var result = await _authService.RegisterAsync(dto);
-        return result != null ? Ok(result) : BadRequest("Email or Username already in use.");
+        return result != null
+            ? Ok(result)
+            : BadRequest(new { message = "Email or Username already in use." });
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
         var result = await _authService.LoginAsync(dto);
-        return result != null ? Ok(result) : Unauthorized("Invalid credentials.");
+        return result != null
+            ? Ok(result)
+            : Unauthorized(new { message = "Invalid credentials." });
     }
 
     [HttpPost("google")]
@@ -39,7 +43,7 @@ public class AuthController : ControllerBase
             return Ok(result);
         return BadRequest(new { message = "Invalid Google token or email already registered with password." });
     }
-    
+
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> GetMe()

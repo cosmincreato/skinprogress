@@ -11,12 +11,12 @@ public class FileService : IFileService
         _environment = environment;
     }
 
-    public async Task<string> SaveFileAsync(IFormFile file, string fileName)
+    public async Task<(string fileName, string fileUrl)> SaveFileAsync(IFormFile file, string folderName)
     {
         // Ensure WebRootPath is not null. If it is, default to a "wwwroot" folder in the current directory.
         var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         
-        var uploadsFolder = Path.Combine(webRootPath, "uploads");
+        var uploadsFolder = Path.Combine(webRootPath, folderName);
         
         if (!Directory.Exists(uploadsFolder))
         {
@@ -25,15 +25,15 @@ public class FileService : IFileService
 
         // Ensure the file has an extension
         var extension = Path.GetExtension(file.FileName);
-        var fullFileName = $"{fileName}{extension}";
-        var filePath = Path.Combine(uploadsFolder, fullFileName);
+        var fileName = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(uploadsFolder, fileName);
 
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
             await file.CopyToAsync(stream);
         }
 
-        return $"/uploads/{fullFileName}";
+        return (fileName, $"/{folderName}/{fileName}");
     }
 
     public void DeleteFile(string filePath)

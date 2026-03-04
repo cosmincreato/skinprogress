@@ -7,5 +7,6 @@ public record UserDto(
     string Role,
     string SkinType,
     string ProfilePictureUrl,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    DateTime? LastSelfieAt
 );

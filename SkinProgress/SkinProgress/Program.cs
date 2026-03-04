@@ -31,7 +31,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "SkinProgress API", Version = "v1" });
-    
+
     // Configuration to support JWT authentication in Swagger UI
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -64,13 +64,22 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFileService, FileService>(); // Register FileService
+builder.Services.AddHttpClient("AiAnalyzer", client =>
+{
+    var aiBaseUrl = builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:8001";
+    client.BaseAddress = new Uri(aiBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 
-builder.Services.AddAuthentication(options => {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options => {
-        options.TokenValidationParameters = new TokenValidationParameters {
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
@@ -79,7 +88,7 @@ builder.Services.AddAuthentication(options => {
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
         };
-        
+
         // Custom response for Unauthorized (401) and Forbidden (403)
         options.Events = new JwtBearerEvents
         {
@@ -90,7 +99,7 @@ builder.Services.AddAuthentication(options => {
 
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
-                
+
                 var result = JsonSerializer.Serialize(new { message = "You are not authorized to access this resource." });
                 return context.Response.WriteAsync(result);
             },
@@ -98,7 +107,7 @@ builder.Services.AddAuthentication(options => {
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
-                
+
                 var result = JsonSerializer.Serialize(new { message = "You do not have permission to perform this action." });
                 return context.Response.WriteAsync(result);
             }
@@ -124,5 +133,5 @@ app.UseStaticFiles(); // Enable serving static files (images)
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers(); 
+app.MapControllers();
 app.Run();

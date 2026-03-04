@@ -40,4 +40,6 @@ public class User
     public string ProfilePictureUrl { get; set; } = "/uploads/default.png";
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
+    public DateTime? LastSelfieAt { get; set; }
 }

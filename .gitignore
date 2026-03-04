@@ -37,6 +37,6 @@ appsettings.Development.json
 appsettings.Local.json
 
 ## User Uploads
+**/wwwroot/selfies/*
 **/wwwroot/uploads/*
-!**/wwwroot/uploads/default.png
 !**/wwwroot/uploads/.gitkeep

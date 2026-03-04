@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: 168 85 247;
+    --color-primary-hover: 147 51 234;
+    --color-secondary: 59 130 246;
+    --color-secondary-hover: 37 99 235;
+    --color-background: 15 23 42;
+    --color-surface: 30 41 59;
+    --color-on-surface: 255 255 255;
+    --color-on-surface-variant: 206 215 230;
+    --color-on-primary: 255 255 255;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900;
+    color: rgb(var(--color-on-surface));
+  }
+}
