@@ -40,6 +40,13 @@ The service will be available at `http://localhost:8001`.
 
 Returns JSON with overall + per-angle predictions and a summary.
 
+Each angle also includes a heatmap overlay field:
+
+- `heatmap_target` (condition key used for overlay)
+- `heatmap_overlay_data_url` (PNG data URL with highlighted problem areas)
+
+Note: heatmap generation uses patch-based localization and is slower than pure score-only analysis.
+
 ## Note
 
 Current implementation uses CLIP zero-shot classification as an MVP baseline.

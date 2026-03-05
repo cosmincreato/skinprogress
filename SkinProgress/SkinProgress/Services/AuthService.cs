@@ -27,7 +27,7 @@ public class AuthService : IAuthService
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
     {
         // Check if a user with this email or username already exists
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email || u.Username == dto.Username)) 
+        if (await _context.Users.AnyAsync(u => u.Email == dto.Email || u.Username == dto.Username))
             return null;
 
         var user = new User
@@ -48,8 +48,8 @@ public class AuthService : IAuthService
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
-        
-        if (user == null || user.PasswordHash == null || 
+
+        if (user == null || user.PasswordHash == null ||
             !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return null;
 
@@ -58,6 +58,9 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> GoogleAuthAsync(string idToken)
     {
+        if (string.IsNullOrWhiteSpace(idToken))
+            return null;
+
         var clientId = _config["Google:ClientId"];
         if (string.IsNullOrEmpty(clientId))
             return null;
@@ -83,6 +86,8 @@ public class AuthService : IAuthService
         var name = payload.Name;
         var picture = payload.Picture;
         var sub = payload.Subject;
+        if (string.IsNullOrWhiteSpace(sub))
+            return null;
 
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.ExternalId == sub || (u.Email == email && u.Provider == "Google"));

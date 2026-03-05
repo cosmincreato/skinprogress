@@ -420,15 +420,24 @@ public class UsersController : ControllerBase
         {
             aiResponse = await client.PostAsync("/analyze-set", content);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Could not reach AI analyzer service." });
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                message = "Could not reach AI analyzer service.",
+                details = ex.Message
+            });
         }
 
         var body = await aiResponse.Content.ReadAsStringAsync();
         if (!aiResponse.IsSuccessStatusCode)
         {
-            return StatusCode(StatusCodes.Status502BadGateway, new { message = "AI analysis failed.", details = body });
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                message = "AI analysis failed.",
+                aiStatusCode = (int)aiResponse.StatusCode,
+                details = body
+            });
         }
 
         try
