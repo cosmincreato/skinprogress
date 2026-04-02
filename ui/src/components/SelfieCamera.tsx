@@ -215,7 +215,7 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
             disabled={!isReady}
             className="block w-full py-4 text-white font-semibold transition-all rounded-none rounded-b-2xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
           >
-            {isReady ? "📸 Capture Selfie" : "Loading..."}
+            {isReady ? "Capture Selfie" : "Loading..."}
           </button>
         )}
       </div>

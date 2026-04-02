@@ -27,6 +27,10 @@ interface SelfieDay {
   isComplete: boolean;
 }
 
+type HabitKey = "cleaning" | "hydration" | "spf";
+
+type HabitDayRecord = Record<HabitKey, boolean>;
+
 type SelfiesApiItem = {
   url?: string;
   uploadedAt?: string;
@@ -37,6 +41,66 @@ type SelfiesApiItem = {
 };
 
 const REQUIRED_ANGLES: SelfieAngle[] = ["front", "left", "right"];
+
+const DAILY_HABITS: { key: HabitKey; label: string }[] = [
+  { key: "cleaning", label: "Cleanse" },
+  { key: "hydration", label: "Hydrate" },
+  { key: "spf", label: "SPF" },
+];
+
+const getLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const createEmptyHabitRecord = (): HabitDayRecord => ({
+  cleaning: false,
+  hydration: false,
+  spf: false,
+});
+
+const createCompletedHabitRecord = (): HabitDayRecord => ({
+  cleaning: true,
+  hydration: true,
+  spf: true,
+});
+
+const createTwoDayHabitSeed = (): Record<string, HabitDayRecord> => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  return {
+    [getLocalDateKey(yesterday)]: createCompletedHabitRecord(),
+    [getLocalDateKey(twoDaysAgo)]: createCompletedHabitRecord(),
+  };
+};
+
+const isHabitDayComplete = (record: HabitDayRecord) =>
+  record.cleaning && record.hydration && record.spf;
+
+const calculateHabitStreak = (entries: Record<string, HabitDayRecord>) => {
+  const hasCompleteEntry = (offsetDays: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() - offsetDays);
+    const entry = entries[getLocalDateKey(date)];
+    return entry ? isHabitDayComplete(entry) : false;
+  };
+
+  const startOffset = hasCompleteEntry(0) ? 0 : 1;
+  if (!hasCompleteEntry(startOffset)) return 0;
+
+  let streak = 0;
+  while (hasCompleteEntry(startOffset + streak)) {
+    streak++;
+  }
+
+  return streak;
+};
 
 const getUserIdFromToken = () => {
   const token = localStorage.getItem("jwt");
@@ -122,9 +186,44 @@ const ProfilePage = () => {
   >([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [habitEntries, setHabitEntries] = useState<
+    Record<string, HabitDayRecord>
+  >({});
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
   const navigate = useNavigate();
   const currentUserId = getUserIdFromToken();
+  const todayHabitKey = getLocalDateKey(new Date());
+
+  const storageKey = userId ? `skinprogress-habits:${userId}` : null;
+
+  const todayHabits = habitEntries[todayHabitKey] ?? createEmptyHabitRecord();
+  const completedHabitDays = Object.values(habitEntries).filter((entry) =>
+    isHabitDayComplete(entry),
+  ).length;
+  const habitStreak = calculateHabitStreak(habitEntries);
+
+  const badges = [
+    {
+      title: "Consistency 3 Days",
+      description: "Complete your routine for 3 days in a row",
+      unlocked: habitStreak >= 3,
+    },
+    {
+      title: "Consistency 7 Days",
+      description: "Complete your routine for 7 days in a row",
+      unlocked: habitStreak >= 7,
+    },
+    {
+      title: "Progress 10 Days",
+      description: "Complete 10 total days",
+      unlocked: completedHabitDays >= 10,
+    },
+    {
+      title: "Progress 30 Days",
+      description: "Complete 30 total days",
+      unlocked: completedHabitDays >= 30,
+    },
+  ];
 
   const calculateStreak = () => {
     const completeDays = selfieDays
@@ -241,6 +340,43 @@ const ProfilePage = () => {
     fetchSelfieDays();
   }, [fetchSelfieDays]);
 
+  useEffect(() => {
+    if (!storageKey) return;
+
+    const seedEntries = createTwoDayHabitSeed();
+
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      setHabitEntries(seedEntries);
+      localStorage.setItem(storageKey, JSON.stringify(seedEntries));
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Record<string, Partial<HabitDayRecord>>;
+      const normalized: Record<string, HabitDayRecord> = {};
+
+      Object.entries(parsed ?? {}).forEach(([date, record]) => {
+        normalized[date] = {
+          cleaning: Boolean(record?.cleaning),
+          hydration: Boolean(record?.hydration),
+          spf: Boolean(record?.spf),
+        };
+      });
+
+      const mergedWithSeed: Record<string, HabitDayRecord> = {
+        ...normalized,
+        ...seedEntries,
+      };
+
+      setHabitEntries(mergedWithSeed);
+      localStorage.setItem(storageKey, JSON.stringify(mergedWithSeed));
+    } catch {
+      setHabitEntries(seedEntries);
+      localStorage.setItem(storageKey, JSON.stringify(seedEntries));
+    }
+  }, [storageKey]);
+
   const handleLogout = () => {
     localStorage.removeItem("jwt");
     navigate("/auth");
@@ -256,6 +392,24 @@ const ProfilePage = () => {
     setSelfie(null);
     setUploadError(null);
   }, []);
+
+  const handleHabitToggle = (habit: HabitKey) => {
+    if (!storageKey) return;
+
+    setHabitEntries((prev) => {
+      const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
+      const next: Record<string, HabitDayRecord> = {
+        ...prev,
+        [todayHabitKey]: {
+          ...current,
+          [habit]: !current[habit],
+        },
+      };
+
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  };
 
   const nextRequiredAngle = REQUIRED_ANGLES.find(
     (angle) => !completedAnglesToday.includes(angle),
@@ -364,16 +518,14 @@ const ProfilePage = () => {
               <p className="text-on-surface-variant text-sm uppercase tracking-wide mb-2">
                 Daily Sets
               </p>
-              <p className="text-4xl font-bold text-blue-400 flex items-center gap-2">
-                {totalSets} <span>📸</span>
-              </p>
+              <p className="text-4xl font-bold text-blue-400">{totalSets}</p>
             </div>
             <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 hover:border-purple-500/50 transition-colors">
               <p className="text-on-surface-variant text-sm uppercase tracking-wide mb-2">
                 Streak Status
               </p>
-              <p className="text-4xl font-bold text-purple-400 flex items-center gap-2">
-                {calculateStreak()} <span>🔥</span>
+              <p className="text-4xl font-bold text-purple-400">
+                {calculateStreak()}
               </p>
             </div>
           </div>
@@ -382,8 +534,7 @@ const ProfilePage = () => {
         {currentUserId === userId && !hasTakenDailySelfie && (
           <section className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 sm:p-8 hover:border-purple-500/50 transition-colors">
             <div className="mb-6">
-              <h3 className="text-2xl font-bold text-on-surface mb-2 flex items-center gap-2">
-                <span className="text-2xl">📸</span>
+              <h3 className="text-2xl font-bold text-on-surface mb-2">
                 Daily Selfie
               </h3>
               <p className="text-on-surface-variant text-sm">
@@ -411,7 +562,7 @@ const ProfilePage = () => {
                   disabled={uploading}
                   className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
-                  🔄 Retake
+                  Retake
                 </button>
               </div>
             )}
@@ -426,21 +577,108 @@ const ProfilePage = () => {
 
         {hasTakenDailySelfie && currentUserId === userId && (
           <section className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-6 sm:p-8 text-center">
-            <p className="text-3xl mb-3">✨</p>
             <h3 className="text-2xl font-bold text-green-300 mb-2">
-              Daily Selfie Complete!
+              Daily Selfie Complete
             </h3>
             <p className="text-on-surface-variant">
-              Great job! Come back tomorrow to continue your progress tracking.
+              Come back tomorrow to continue your progress tracking.
             </p>
+          </section>
+        )}
+
+        {currentUserId === userId && (
+          <section className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 sm:p-8 hover:border-purple-500/50 transition-colors space-y-6">
+            <div>
+              <h3 className="text-2xl font-bold text-on-surface mb-2">
+                Habit Tracker
+              </h3>
+              <p className="text-on-surface-variant text-sm">
+                Check your daily routine: cleanse, hydrate, and SPF.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {DAILY_HABITS.map((habit) => {
+                const checked = todayHabits[habit.key];
+
+                return (
+                  <label
+                    key={habit.key}
+                    className={`flex items-center justify-between rounded-xl border p-4 cursor-pointer transition-colors ${
+                      checked
+                        ? "border-green-500/40 bg-green-500/10"
+                        : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
+                    }`}
+                  >
+                    <span className="text-on-surface font-medium">
+                      {habit.label}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => handleHabitToggle(habit.key)}
+                      className="h-4 w-4 accent-green-500"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+                <p className="text-on-surface-variant text-sm mb-1">Streak</p>
+                <p className="text-2xl font-bold text-purple-300">
+                  {habitStreak} days
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+                <p className="text-on-surface-variant text-sm mb-1">
+                  Completed Days
+                </p>
+                <p className="text-2xl font-bold text-blue-300">
+                  {completedHabitDays}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-lg font-semibold text-on-surface mb-3">
+                Badges
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {badges.map((badge) => (
+                  <div
+                    key={badge.title}
+                    className={`rounded-xl border p-4 ${
+                      badge.unlocked
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : "border-slate-700 bg-slate-800/40"
+                    }`}
+                  >
+                    <p className="text-on-surface font-semibold">
+                      {badge.title}
+                    </p>
+                    <p className="text-on-surface-variant text-sm">
+                      {badge.description}
+                    </p>
+                    <p
+                      className={`text-xs mt-2 ${
+                        badge.unlocked ? "text-emerald-300" : "text-slate-400"
+                      }`}
+                    >
+                      {badge.unlocked ? "Unlocked" : "Locked"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-on-surface mb-2 flex items-center gap-2">
-                <span>🖼️</span>
+              <h2 className="text-3xl font-bold text-on-surface mb-2">
                 Your Progress Gallery
               </h2>
               <p className="text-on-surface-variant">
@@ -459,7 +697,6 @@ const ProfilePage = () => {
 
           {!latestSelfieDay ? (
             <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-12 text-center hover:border-purple-500/50 transition-colors">
-              <p className="text-4xl mb-4">📷</p>
               <p className="text-on-surface-variant text-lg">
                 No daily sets yet
               </p>

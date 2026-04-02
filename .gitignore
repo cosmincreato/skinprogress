@@ -40,3 +40,6 @@ appsettings.Local.json
 **/wwwroot/selfies/*
 **/wwwroot/uploads/*
 !**/wwwroot/uploads/.gitkeep
+
+## Editor Specific
+.vscode/
