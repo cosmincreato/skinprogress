@@ -1,0 +1,156 @@
+using Microsoft.EntityFrameworkCore;
+using SkinProgress.Data;
+using SkinProgress.Models.Entities;
+using SkinProgress.Constants;
+
+namespace SkinProgress.Services;
+
+/// <summary>
+/// Email confirmation service for verifying user email addresses.
+/// Generates tokens, validates them, and marks emails as confirmed.
+/// Tokens expire after 48 hours.
+/// </summary>
+public interface IEmailConfirmationService
+{
+    /// <summary>
+    /// Generate and store email confirmation token for user.
+    /// Token valid for 48 hours.
+    /// </summary>
+    Task<string> GenerateConfirmationTokenAsync(Guid userId);
+
+    /// <summary>
+    /// Validate and confirm email using token.
+    /// Marks user's email as confirmed.
+    /// Throws InvalidOperationException if token invalid or expired.
+    /// </summary>
+    Task<bool> ConfirmEmailAsync(string token);
+
+    /// <summary>
+    /// Get user from confirmation token.
+    /// Returns null if token invalid or expired.
+    /// </summary>
+    Task<User?> GetUserFromTokenAsync(string token);
+}
+
+public class EmailConfirmationService : IEmailConfirmationService
+{
+    private readonly AppDbContext _dbContext;
+    private readonly ILogger<EmailConfirmationService> _logger;
+
+    public EmailConfirmationService(
+        AppDbContext dbContext,
+        ILogger<EmailConfirmationService> logger)
+    {
+        _dbContext = dbContext;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Generate new confirmation token and store in database.
+    /// Token expires in 48 hours.
+    /// </summary>
+    public async Task<string> GenerateConfirmationTokenAsync(Guid userId)
+    {
+        // Check user exists
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+        {
+            throw new InvalidOperationException($"User {userId} not found");
+        }
+
+        // Generate token (GUID for simplicity; use cryptographically secure random in production)
+        string token = Guid.NewGuid().ToString("N");
+
+        // Create confirmation token record
+        var confirmationToken = new UserEmailConfirmationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Token = token,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(AuthConstants.EmailConfirmationTokenExpirationHours)
+        };
+
+        _dbContext.UserEmailConfirmationTokens.Add(confirmationToken);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation($"Confirmation token generated for user {userId}");
+
+        return token;
+    }
+
+    /// <summary>
+    /// Confirm email using token.
+    /// 1. Find token in database
+    /// 2. Validate not expired
+    /// 3. Mark user's email as confirmed
+    /// 4. Delete token
+    /// Returns true if successful, throws exception if invalid/expired
+    /// </summary>
+    public async Task<bool> ConfirmEmailAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new InvalidOperationException("Confirmation token is required");
+        }
+
+        // Find token
+        var confirmationToken = await _dbContext.UserEmailConfirmationTokens
+            .FirstOrDefaultAsync(t => t.Token == token);
+
+        if (confirmationToken == null)
+        {
+            _logger.LogWarning($"Invalid confirmation token attempted");
+            throw new InvalidOperationException("Invalid confirmation token");
+        }
+
+        // Check if token expired
+        if (!confirmationToken.IsValid)
+        {
+            _logger.LogWarning($"Expired confirmation token for user {confirmationToken.UserId}");
+            throw new InvalidOperationException("Confirmation token has expired");
+        }
+
+        // Get user
+        var user = await _dbContext.Users.FindAsync(confirmationToken.UserId);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found");
+        }
+
+        // Mark email as confirmed
+        user.EmailConfirmed = true;
+        user.EmailConfirmedAt = DateTime.UtcNow;
+
+        // Delete token
+        _dbContext.UserEmailConfirmationTokens.Remove(confirmationToken);
+
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation($"Email confirmed for user {user.Id}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Get user associated with confirmation token.
+    /// Returns null if token invalid or expired.
+    /// </summary>
+    public async Task<User?> GetUserFromTokenAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var confirmationToken = await _dbContext.UserEmailConfirmationTokens
+            .FirstOrDefaultAsync(t => t.Token == token);
+
+        if (confirmationToken == null || !confirmationToken.IsValid)
+        {
+            return null;
+        }
+
+        return await _dbContext.Users.FindAsync(confirmationToken.UserId);
+    }
+}

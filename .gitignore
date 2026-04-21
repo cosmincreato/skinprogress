@@ -43,3 +43,6 @@ appsettings.Local.json
 
 ## Editor Specific
 .vscode/
+specs/
+.specify/
+.github/

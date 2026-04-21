@@ -5,41 +5,33 @@ import {
   Routes,
   Navigate,
 } from "react-router-dom";
-import AuthPage from "./pages/AuthPage.tsx";
 import ProfilePage from "./pages/ProfilePage.tsx";
 import GalleryPage from "./pages/GalleryPage.tsx";
-
-const isAuthenticated = () => {
-  return localStorage.getItem("jwt") !== null;
-};
-
-const getUserIdFromToken = () => {
-  const token = localStorage.getItem("jwt");
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload[
-      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-    ];
-  } catch (e) {
-    return null;
-  }
-};
+import EvolutionPage from "./pages/EvolutionPage.tsx";
+import EmailRegister from "./components/auth/EmailRegister.tsx";
+import EmailLogin from "./components/auth/EmailLogin.tsx";
+import ConfirmEmail from "./components/auth/ConfirmEmail.tsx";
+import { isAuthenticated, getUserId } from "./services/authService.ts";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!isAuthenticated()) {
-    return <Navigate to="/auth" />;
+    return <Navigate to="/login" />;
   }
   return children;
 };
 
 function App() {
-  const userId = getUserIdFromToken();
+  const userId = getUserId();
 
   return (
     <Router>
       <Routes>
-        <Route path="/auth" element={<AuthPage />} />
+        {/* Auth Routes */}
+        <Route path="/register" element={<EmailRegister />} />
+        <Route path="/login" element={<EmailLogin />} />
+        <Route path="/confirm-email" element={<ConfirmEmail />} />
+
+        {/* Protected Routes */}
         <Route
           path="/users/:userId"
           element={
@@ -57,15 +49,41 @@ function App() {
           }
         />
         <Route
-          path="/"
+          path="/users/:userId/evolution"
+          element={
+            <ProtectedRoute>
+              <EvolutionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Dashboard alias for profile */}
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               {userId ? (
                 <Navigate to={`/users/${userId}`} />
               ) : (
-                <Navigate to="/auth" />
+                <Navigate to="/login" />
               )}
             </ProtectedRoute>
+          }
+        />
+
+        {/* Root path */}
+        <Route
+          path="/"
+          element={
+            isAuthenticated() ? (
+              userId ? (
+                <Navigate to={`/users/${userId}`} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
           }
         />
       </Routes>

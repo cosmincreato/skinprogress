@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getAuthToken } from "../services/authService";
 
 type SelfieAngle = "front" | "left" | "right";
 
@@ -226,9 +227,9 @@ const GalleryPage = () => {
 
   useEffect(() => {
     const fetchSelfies = async () => {
-      const token = localStorage.getItem("jwt");
+      const token = getAuthToken();
       if (!token || !userId) {
-        navigate("/auth");
+        navigate("/login");
         return;
       }
 
@@ -410,9 +411,9 @@ const GalleryPage = () => {
       return;
     }
 
-    const token = localStorage.getItem("jwt");
+    const token = getAuthToken();
     if (!token) {
-      navigate("/auth");
+      navigate("/login");
       return;
     }
 

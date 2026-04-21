@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import SelfieCamera, {
   type SelfieCameraHandle,
 } from "../components/SelfieCamera";
+import { getAuthToken } from "../services/authService";
+import { habitsService } from "../services/habitsService";
 
 interface User {
   id: string;
@@ -55,6 +57,33 @@ const getLocalDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+// Get today's date key using UTC (consistent with database storage)
+const getTodayDateKeyUTC = (): string => {
+  const date = new Date();
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+// Get a UTC date key for any date
+const getUTCDateKey = (date: Date): string => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+// Parse a database date string (ISO 8601) and return date key
+const parseDatabaseDateKey = (dateString: string): string => {
+  // Parse ISO date string and extract just the date part without timezone conversion
+  const date = new Date(dateString);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const createEmptyHabitRecord = (): HabitDayRecord => ({
   cleaning: false,
   hydration: false,
@@ -69,14 +98,14 @@ const createCompletedHabitRecord = (): HabitDayRecord => ({
 
 const createTwoDayHabitSeed = (): Record<string, HabitDayRecord> => {
   const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
 
   const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
 
   return {
-    [getLocalDateKey(yesterday)]: createCompletedHabitRecord(),
-    [getLocalDateKey(twoDaysAgo)]: createCompletedHabitRecord(),
+    [getUTCDateKey(yesterday)]: createCompletedHabitRecord(),
+    [getUTCDateKey(twoDaysAgo)]: createCompletedHabitRecord(),
   };
 };
 
@@ -86,8 +115,8 @@ const isHabitDayComplete = (record: HabitDayRecord) =>
 const calculateHabitStreak = (entries: Record<string, HabitDayRecord>) => {
   const hasCompleteEntry = (offsetDays: number) => {
     const date = new Date();
-    date.setDate(date.getDate() - offsetDays);
-    const entry = entries[getLocalDateKey(date)];
+    date.setUTCDate(date.getUTCDate() - offsetDays);
+    const entry = entries[getUTCDateKey(date)];
     return entry ? isHabitDayComplete(entry) : false;
   };
 
@@ -186,15 +215,16 @@ const ProfilePage = () => {
   >([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [habitEntries, setHabitEntries] = useState<
     Record<string, HabitDayRecord>
   >({});
+  const [userBadges, setUserBadges] = useState<any[]>([]);
+  const [habitsLoading, setHabitsLoading] = useState(false);
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
   const navigate = useNavigate();
   const currentUserId = getUserIdFromToken();
-  const todayHabitKey = getLocalDateKey(new Date());
-
-  const storageKey = userId ? `skinprogress-habits:${userId}` : null;
+  const todayHabitKey = getTodayDateKeyUTC();
 
   const todayHabits = habitEntries[todayHabitKey] ?? createEmptyHabitRecord();
   const completedHabitDays = Object.values(habitEntries).filter((entry) =>
@@ -206,22 +236,30 @@ const ProfilePage = () => {
     {
       title: "Consistency 3 Days",
       description: "Complete your routine for 3 days in a row",
-      unlocked: habitStreak >= 3,
+      unlocked:
+        habitStreak >= 3 ||
+        userBadges.some((b) => b.badgeCode === "CONSISTENCY_3"),
     },
     {
       title: "Consistency 7 Days",
       description: "Complete your routine for 7 days in a row",
-      unlocked: habitStreak >= 7,
+      unlocked:
+        habitStreak >= 7 ||
+        userBadges.some((b) => b.badgeCode === "CONSISTENCY_7"),
     },
     {
       title: "Progress 10 Days",
       description: "Complete 10 total days",
-      unlocked: completedHabitDays >= 10,
+      unlocked:
+        completedHabitDays >= 10 ||
+        userBadges.some((b) => b.badgeCode === "PROGRESS_10"),
     },
     {
       title: "Progress 30 Days",
       description: "Complete 30 total days",
-      unlocked: completedHabitDays >= 30,
+      unlocked:
+        completedHabitDays >= 30 ||
+        userBadges.some((b) => b.badgeCode === "PROGRESS_30"),
     },
   ];
 
@@ -270,7 +308,7 @@ const ProfilePage = () => {
   };
 
   const fetchSelfieDays = useCallback(async () => {
-    const token = localStorage.getItem("jwt");
+    const token = getAuthToken();
     if (!token || !userId) return;
 
     try {
@@ -303,7 +341,7 @@ const ProfilePage = () => {
       ).filter((angle, index, arr) => arr.indexOf(angle) === index);
 
       setCompletedAnglesToday(todayAngles);
-      setHasTakenDailySelfie(todayAngles.length > 0);
+      setHasTakenDailySelfie(todayAngles.length === REQUIRED_ANGLES.length);
     } catch (error) {
       console.error("Failed to fetch selfies", error);
     }
@@ -326,7 +364,8 @@ const ProfilePage = () => {
           setUser(userData);
         } else {
           localStorage.removeItem("jwt");
-          navigate("/auth");
+          localStorage.removeItem("accessToken");
+          navigate("/login");
         }
       } catch (error) {
         console.error("Failed to fetch user", error);
@@ -340,46 +379,81 @@ const ProfilePage = () => {
     fetchSelfieDays();
   }, [fetchSelfieDays]);
 
+  // Fetch habits and badges from database
   useEffect(() => {
-    if (!storageKey) return;
+    const loadHabitsAndBadges = async () => {
+      try {
+        setHabitsLoading(true);
 
-    const seedEntries = createTwoDayHabitSeed();
+        // Initialize habits if not already done
+        try {
+          console.log("DEBUG: Initializing habits...");
+          await habitsService.initializeHabits();
+          console.log("DEBUG: Habits initialized successfully");
+        } catch (e) {
+          console.error("ERROR: Failed to initialize habits", e);
+        }
 
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      setHabitEntries(seedEntries);
-      localStorage.setItem(storageKey, JSON.stringify(seedEntries));
-      return;
-    }
+        // Fetch last 60 days of habit data for calculations
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setUTCDate(startDate.getUTCDate() - 60);
 
-    try {
-      const parsed = JSON.parse(raw) as Record<string, Partial<HabitDayRecord>>;
-      const normalized: Record<string, HabitDayRecord> = {};
+        try {
+          const habitRange = await habitsService.getHabitRange(
+            startDate,
+            endDate,
+          );
 
-      Object.entries(parsed ?? {}).forEach(([date, record]) => {
-        normalized[date] = {
-          cleaning: Boolean(record?.cleaning),
-          hydration: Boolean(record?.hydration),
-          spf: Boolean(record?.spf),
-        };
-      });
+          // Convert to the same format as our local state
+          const habitMap: Record<string, HabitDayRecord> = {};
+          habitRange.forEach((day) => {
+            // Use UTC date parsing to avoid timezone issues
+            const dateStr = parseDatabaseDateKey(day.date);
+            habitMap[dateStr] = {
+              cleaning: day.habits.some(
+                (h) => h.habitName === "Cleanse" && h.isCompleted,
+              ),
+              hydration: day.habits.some(
+                (h) => h.habitName === "Hydrate" && h.isCompleted,
+              ),
+              spf: day.habits.some(
+                (h) => h.habitName === "SPF" && h.isCompleted,
+              ),
+            };
+          });
 
-      const mergedWithSeed: Record<string, HabitDayRecord> = {
-        ...normalized,
-        ...seedEntries,
-      };
+          setHabitEntries(habitMap);
+        } catch (e) {
+          console.warn("Failed to fetch habit range, using empty habits", e);
+          setHabitEntries({});
+        }
 
-      setHabitEntries(mergedWithSeed);
-      localStorage.setItem(storageKey, JSON.stringify(mergedWithSeed));
-    } catch {
-      setHabitEntries(seedEntries);
-      localStorage.setItem(storageKey, JSON.stringify(seedEntries));
-    }
-  }, [storageKey]);
+        // Fetch user badges
+        try {
+          const badges = await habitsService.getUserBadges();
+          setUserBadges(badges);
+        } catch (e) {
+          console.warn("Failed to fetch badges, using empty badges", e);
+          setUserBadges([]);
+        }
+      } catch (error) {
+        console.error("Failed to load habits and badges", error);
+      } finally {
+        setHabitsLoading(false);
+      }
+    };
+
+    loadHabitsAndBadges();
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("jwt");
-    navigate("/auth");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("userEmail");
+    navigate("/login");
   };
 
   const handleSelfieCapture = (image: string) => {
@@ -393,9 +467,14 @@ const ProfilePage = () => {
     setUploadError(null);
   }, []);
 
-  const handleHabitToggle = (habit: HabitKey) => {
-    if (!storageKey) return;
+  const handleHabitToggle = async (habit: HabitKey) => {
+    const habitNames: Record<HabitKey, string> = {
+      cleaning: "Cleanse",
+      hydration: "Hydrate",
+      spf: "SPF",
+    };
 
+    // Update local state first for immediate UI feedback
     setHabitEntries((prev) => {
       const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
       const next: Record<string, HabitDayRecord> = {
@@ -405,10 +484,17 @@ const ProfilePage = () => {
           [habit]: !current[habit],
         },
       };
-
-      localStorage.setItem(storageKey, JSON.stringify(next));
       return next;
     });
+
+    // Save to database immediately
+    try {
+      const habitName = habitNames[habit];
+      await habitsService.completeHabit(habitName);
+      console.log("DEBUG: Saved habit:", habitName);
+    } catch (error) {
+      console.error("Failed to save habit:", error);
+    }
   };
 
   const nextRequiredAngle = REQUIRED_ANGLES.find(
@@ -451,6 +537,32 @@ const ProfilePage = () => {
       console.error("Failed to upload selfie", error);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleRestartSelfies = async () => {
+    setRestarting(true);
+    setUploadError(null);
+    try {
+      console.log("Starting to delete today's selfies...");
+      await habitsService.deleteTodaysSelfies();
+      console.log("Selfies deleted successfully, fetching updated data...");
+      await fetchSelfieDays();
+      console.log("Fetch complete, resetting UI state...");
+      setHasTakenDailySelfie(false);
+      setCompletedAnglesToday([]);
+      setSelfie(null);
+      selfieCameraRef.current?.resetCapture();
+      console.log("Restart completed successfully");
+    } catch (error) {
+      console.error("Failed to restart selfies:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to restart selfies. Please try again.";
+      setUploadError(errorMessage);
+    } finally {
+      setRestarting(false);
     }
   };
 
@@ -575,14 +687,37 @@ const ProfilePage = () => {
           </section>
         )}
 
-        {hasTakenDailySelfie && currentUserId === userId && (
-          <section className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-6 sm:p-8 text-center">
-            <h3 className="text-2xl font-bold text-green-300 mb-2">
-              Daily Selfie Complete
-            </h3>
-            <p className="text-on-surface-variant">
-              Come back tomorrow to continue your progress tracking.
-            </p>
+        {completedAnglesToday.length > 0 && currentUserId === userId && (
+          <section
+            className={`rounded-2xl p-6 sm:p-8 ${
+              hasTakenDailySelfie
+                ? "bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30"
+                : "bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30"
+            }`}
+          >
+            <div className="text-center mb-6">
+              <h3
+                className={`text-2xl font-bold mb-2 ${
+                  hasTakenDailySelfie ? "text-green-300" : "text-blue-300"
+                }`}
+              >
+                {hasTakenDailySelfie
+                  ? "Daily Selfie Complete"
+                  : `Selfies in Progress (${completedAnglesToday.length}/3)`}
+              </h3>
+              <p className="text-on-surface-variant">
+                {hasTakenDailySelfie
+                  ? "Come back tomorrow to continue your progress tracking."
+                  : `You've taken the ${completedAnglesToday.map((a) => (a === "front" ? "front" : a === "left" ? "left side" : "right side")).join(", ")} selfie${completedAnglesToday.length > 1 ? "s" : ""}.`}
+              </p>
+            </div>
+            <button
+              onClick={handleRestartSelfies}
+              disabled={restarting}
+              className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base"
+            >
+              {restarting ? "Restarting..." : "Restart Today's Selfies"}
+            </button>
           </section>
         )}
 
@@ -642,32 +777,54 @@ const ProfilePage = () => {
             </div>
 
             <div>
-              <h4 className="text-lg font-semibold text-on-surface mb-3">
+              <h4 className="text-lg font-semibold text-on-surface mb-4">
                 Badges
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {badges.map((badge) => (
                   <div
                     key={badge.title}
-                    className={`rounded-xl border p-4 ${
+                    className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-300 ${
                       badge.unlocked
-                        ? "border-emerald-500/40 bg-emerald-500/10"
-                        : "border-slate-700 bg-slate-800/40"
+                        ? "bg-gradient-to-r from-emerald-500/20 to-blue-500/10 border-emerald-400/50 hover:border-emerald-400 shadow-lg shadow-emerald-500/10"
+                        : "bg-slate-800/50 border-slate-600/50 opacity-60"
                     }`}
                   >
-                    <p className="text-on-surface font-semibold">
-                      {badge.title}
-                    </p>
-                    <p className="text-on-surface-variant text-sm">
-                      {badge.description}
-                    </p>
-                    <p
-                      className={`text-xs mt-2 ${
-                        badge.unlocked ? "text-emerald-300" : "text-slate-400"
+                    {/* Badge Circle */}
+                    <div
+                      className={`flex-shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold border-4 relative ${
+                        badge.unlocked
+                          ? "bg-gradient-to-br from-emerald-400 to-blue-400 border-emerald-300 shadow-lg shadow-emerald-400/50"
+                          : "bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 shadow-lg shadow-slate-900/50"
                       }`}
                     >
-                      {badge.unlocked ? "Unlocked" : "Locked"}
-                    </p>
+                      {badge.unlocked ? (
+                        <span>🏆</span>
+                      ) : (
+                        <span className="text-slate-500">🔒</span>
+                      )}
+                      {/* Shine effect for unlocked badges */}
+                      {badge.unlocked && (
+                        <div className="absolute top-1 right-1 w-3 h-3 bg-white rounded-full opacity-60"></div>
+                      )}
+                    </div>
+
+                    {/* Badge Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-on-surface font-bold text-sm">
+                        {badge.title}
+                      </p>
+                      <p className="text-on-surface-variant text-xs leading-relaxed">
+                        {badge.description}
+                      </p>
+                      <p
+                        className={`text-xs font-semibold mt-2 ${
+                          badge.unlocked ? "text-emerald-300" : "text-slate-400"
+                        }`}
+                      >
+                        {badge.unlocked ? "✓ Unlocked" : "🔒 Locked"}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
