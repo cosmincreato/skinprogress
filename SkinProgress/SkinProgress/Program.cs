@@ -62,8 +62,29 @@ builder.Services.AddSwaggerGen(c =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
+// Register encryption service (AES-256-GCM) — fail fast if ENCRYPTION_KEY is missing
+builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFileService, FileService>(); // Register FileService
+builder.Services.AddScoped<IEvolutionAnalyticsService, EvolutionAnalyticsService>(); // Register EvolutionAnalyticsService for US1, US2, US3
+
+// Register new authentication expansion services
+builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IRateLimitService, RateLimitService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddMemoryCache(); // Required for RateLimitService
+
+// Register photo capture system services (US1, US2, US3)
+builder.Services.AddScoped<ImageCompressionService>();
+builder.Services.AddScoped<ExifExtractorService>();
+builder.Services.AddScoped<StorageQuotaService>();
+builder.Services.AddScoped<PhotoService>();
+
 builder.Services.AddHttpClient("AiAnalyzer", client =>
 {
     var aiBaseUrl = builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:8001";
@@ -86,7 +107,7 @@ builder.Services.AddAuthentication(options =>
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
         };
 
         // Custom response for Unauthorized (401) and Forbidden (403)

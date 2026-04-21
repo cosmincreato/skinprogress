@@ -220,11 +220,6 @@ public class UsersController : ControllerBase
             .Where(f => f.UploadedAt.Date == today)
             .ToList();
 
-        if (todaysSelfies.Any())
-        {
-            return Conflict(new { message = "You already took your selfie for today." });
-        }
-
         if (todaysSelfies.Any(s => string.Equals(s.Angle, normalizedAngle, StringComparison.OrdinalIgnoreCase)))
         {
             return Conflict(new { message = $"You already uploaded the {normalizedAngle} selfie for today." });
@@ -261,6 +256,65 @@ public class UsersController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { fileName, fileUrl, angle = normalizedAngle });
+    }
+
+    [HttpDelete("selfies/today")]
+    [Authorize]
+    public IActionResult DeleteTodaysSelfies()
+    {
+        try
+        {
+            var userIdString = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+            if (userIdString == null)
+            {
+                return Unauthorized();
+            }
+
+            if (!Guid.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var userSelfieFolder = Path.Combine(webRootPath, "selfies", userId.ToString());
+
+            if (!Directory.Exists(userSelfieFolder))
+            {
+                return Ok(new { message = "No selfies found for today." });
+            }
+
+            var today = DateTime.UtcNow.Date;
+            var todaysSelfies = Directory.GetFiles(userSelfieFolder)
+                .Select(filePath => new
+                {
+                    FilePath = filePath,
+                    UploadedAt = System.IO.File.GetLastWriteTimeUtc(filePath)
+                })
+                .Where(f => f.UploadedAt.Date == today)
+                .ToList();
+
+            int deletedCount = 0;
+            foreach (var selfie in todaysSelfies)
+            {
+                try
+                {
+                    System.IO.File.Delete(selfie.FilePath);
+                    deletedCount++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to delete file {selfie.FilePath}: {ex.Message}");
+                    // Continue deleting other files even if one fails
+                }
+            }
+
+            return Ok(new { message = $"Deleted {deletedCount} selfie(s) from today." });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"DeleteTodaysSelfies error: {ex.Message}");
+            return StatusCode(500, new { message = "An error occurred while deleting selfies.", error = ex.Message });
+        }
     }
 
     // DELETE: api/users/{id}

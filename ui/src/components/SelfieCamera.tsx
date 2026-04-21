@@ -6,25 +6,101 @@ import {
   useRef,
   useState,
 } from "react";
+import { FaceDetectionService } from "../services/faceDetectionService";
+import FaceDetectionOverlay from "./FaceDetectionOverlay";
+import type { FaceDetectionResult } from "../types/FaceDetection";
 
 interface SelfieCameraProps {
-  onCapture: (image: string) => void;
+  onCapture: (image: string, faceDetection?: FaceDetectionResult) => void;
+  enableFaceDetection?: boolean;
 }
 
 export interface SelfieCameraHandle {
   resetCapture: () => void;
+  getFaceDetectionResult: () => FaceDetectionResult | null;
 }
 
 const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
-  ({ onCapture }, ref) => {
+  ({ onCapture, enableFaceDetection = true }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const detectionLoopRef = useRef<number | null>(null);
+    const faceDetectionServiceRef = useRef<FaceDetectionService | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const [isReady, setIsReady] = useState(false);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+    const [faceDetectionResult, setFaceDetectionResult] =
+      useState<FaceDetectionResult | null>(null);
+    const [modelsLoading, setModelsLoading] = useState(enableFaceDetection);
+
+    // Initialize face detection service
+    useEffect(() => {
+      if (!enableFaceDetection) {
+        setModelsLoading(false);
+        return;
+      }
+
+      const initFaceDetection = async () => {
+        try {
+          const service = new FaceDetectionService();
+          await service.initialize();
+          faceDetectionServiceRef.current = service;
+          setModelsLoading(false);
+        } catch (err) {
+          console.warn("Face detection initialization failed:", err);
+          // Non-blocking: app still works without face detection
+          setModelsLoading(false);
+        }
+      };
+
+      initFaceDetection();
+    }, [enableFaceDetection]);
+
+    // Start face detection loop when video is ready
+    useEffect(() => {
+      if (
+        !isReady ||
+        !videoRef.current ||
+        !faceDetectionServiceRef.current ||
+        !enableFaceDetection ||
+        capturedImage
+      ) {
+        return;
+      }
+
+      let continuous = true;
+      const video = videoRef.current;
+
+      const detectLoop = async () => {
+        if (!continuous || !faceDetectionServiceRef.current) return;
+
+        try {
+          const result =
+            await faceDetectionServiceRef.current.detectFaces(video);
+          setFaceDetectionResult(result);
+        } catch (err) {
+          console.warn("Face detection frame error:", err);
+        }
+
+        if (continuous) {
+          detectionLoopRef.current = requestAnimationFrame(detectLoop);
+        }
+      };
+
+      detectionLoopRef.current = requestAnimationFrame(detectLoop);
+
+      return () => {
+        continuous = false;
+        if (detectionLoopRef.current) {
+          cancelAnimationFrame(detectionLoopRef.current);
+          detectionLoopRef.current = null;
+        }
+      };
+    }, [isReady, enableFaceDetection, capturedImage]);
 
     useEffect(() => {
       let cancelled = false;
@@ -150,11 +226,12 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
 
       const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
       setCapturedImage(dataUrl);
-      onCapture(dataUrl);
+      onCapture(dataUrl, faceDetectionResult || undefined);
     };
 
     const resetSelfieLock = useCallback(() => {
       setCapturedImage(null);
+      setFaceDetectionResult(null);
       onCapture("");
     }, [onCapture]);
 
@@ -162,8 +239,9 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
       ref,
       () => ({
         resetCapture: resetSelfieLock,
+        getFaceDetectionResult: () => faceDetectionResult,
       }),
-      [resetSelfieLock],
+      [resetSelfieLock, faceDetectionResult],
     );
 
     if (error) {
@@ -182,11 +260,20 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
     }
 
     return (
-      <div className="rounded-2xl overflow-hidden border border-slate-700 bg-black">
+      <div
+        ref={containerRef}
+        className="rounded-2xl overflow-hidden border border-slate-700 bg-black"
+      >
         <div className="relative aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
           {!isReady && !capturedImage && (
-            <div className="absolute inset-0 flex items-center justify-center z-10 bg-black">
-              <span className="text-gray-400 text-sm">Starting camera…</span>
+            <div className="absolute inset-0 flex items-center justify-center z-20 bg-black">
+              <div className="text-center">
+                <span className="text-gray-400 text-sm block mb-2">
+                  {modelsLoading && enableFaceDetection
+                    ? "Loading face detection…"
+                    : "Starting camera…"}
+                </span>
+              </div>
             </div>
           )}
 
@@ -202,10 +289,25 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
             ref={videoRef}
             muted
             playsInline
-            className={`w-full h-full object-cover scale-x-[-1] ${capturedImage ? "invisible absolute inset-0" : ""}`}
+            className={`w-full h-full object-cover scale-x-[-1] ${
+              capturedImage ? "invisible absolute inset-0" : ""
+            }`}
           />
 
           <canvas ref={canvasRef} className="hidden" />
+
+          {/* Face detection overlay */}
+          {isReady &&
+            !capturedImage &&
+            enableFaceDetection &&
+            containerRef.current && (
+              <FaceDetectionOverlay
+                result={faceDetectionResult}
+                containerWidth={containerRef.current.offsetWidth}
+                containerHeight={containerRef.current.offsetWidth * (3 / 4)}
+                visible={true}
+              />
+            )}
         </div>
 
         {!capturedImage && (
@@ -215,7 +317,7 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
             disabled={!isReady}
             className="block w-full py-4 text-white font-semibold transition-all rounded-none rounded-b-2xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
           >
-            {isReady ? "📸 Capture Selfie" : "Loading..."}
+            {isReady ? "Capture Selfie" : "Loading..."}
           </button>
         )}
       </div>

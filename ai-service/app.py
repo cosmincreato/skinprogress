@@ -361,7 +361,7 @@ def analyze_set(
         "overall_scores": overall_scores,
         "per_angle": per_angle,
         "summary": summary,
-        "disclaimer": "AI output is informational only and not a medical diagnosis.",
+        "disclaimer": "The output is informational only and not a medical diagnosis.",
     }
 
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getAuthToken } from "../services/authService";
 
 type SelfieAngle = "front" | "left" | "right";
 
@@ -226,9 +227,9 @@ const GalleryPage = () => {
 
   useEffect(() => {
     const fetchSelfies = async () => {
-      const token = localStorage.getItem("jwt");
+      const token = getAuthToken();
       if (!token || !userId) {
-        navigate("/auth");
+        navigate("/login");
         return;
       }
 
@@ -410,9 +411,9 @@ const GalleryPage = () => {
       return;
     }
 
-    const token = localStorage.getItem("jwt");
+    const token = getAuthToken();
     if (!token) {
-      navigate("/auth");
+      navigate("/login");
       return;
     }
 
@@ -477,7 +478,6 @@ const GalleryPage = () => {
           </div>
         ) : selfieDays.length === 0 ? (
           <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-12 text-center">
-            <p className="text-4xl mb-4">📷</p>
             <p className="text-on-surface-variant text-lg">No daily sets yet</p>
             <p className="text-on-surface-variant text-sm mt-2">
               Start by taking your first 3-photo set.
@@ -667,7 +667,7 @@ const GalleryPage = () => {
                         ) && (
                           <div className="pt-1 space-y-2">
                             <p className="text-xs text-on-surface-variant">
-                              Heatmap overlay (AI-highlighted problem areas)
+                              Heatmap overlay (highlighted problem areas)
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               {angleOrder.map((angle) => {
