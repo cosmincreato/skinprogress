@@ -1,0 +1,36 @@
+# Defaults
+.git
+.hg
+.svn
+.prettierignore
+
+# Dependencies
+node_modules/
+dist/
+build/
+*.min.js
+*.min.css
+
+# Files
+*.lock
+*.json.lock
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Build outputs
+coverage/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Generated
+public/
+out/
