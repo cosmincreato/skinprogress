@@ -1,0 +1,75 @@
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Version control
+.github/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.byebug_history
+.DS_Store
+Thumbs.db
+
+# Build outputs
+bin/
+obj/
+dist/
+build/
+coverage/
+
+# Dependencies
+node_modules/
+*.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+[Ll]ib64/
+
+# IDE specific
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docuser
+.vscode
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+appsettings.Development.json
+appsettings.Local.json
+
+# Specifications and docs
+specs/
+documentation/
+*.md
+README
+
+# Application logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Source maps
+*.map
+
+# User uploads (large data)
+wwwroot/selfies/
+wwwroot/uploads/

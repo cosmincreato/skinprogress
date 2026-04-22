@@ -49,5 +49,26 @@ Note: heatmap generation uses patch-based localization and is slower than pure s
 
 ## Note
 
-Current implementation uses CLIP zero-shot classification as an MVP baseline.
-For production quality, replace with a model fine-tuned on your target dermatology dataset and validated clinically.
+By default the service uses a dedicated acne severity classifier (better than CLIP zero-shot for acne).
+
+### Configuration (env vars)
+
+- `MODEL_BACKEND`
+  - `acne_severity` (default): acne from a supervised acne model + redness/bags from CLIP
+  - `clip`: all three scores from CLIP zero-shot (original behavior)
+- `ACNE_MODEL_ID` (default: `imfarzanansari/skintelligent-acne`)
+- `CLIP_MODEL_ID` (default: `openai/clip-vit-base-patch32`)
+- `HEATMAP_ENABLED`
+  - `0` (default): do not generate heatmap overlay (much faster)
+  - `1`: enable heatmap overlay
+- `HEATMAP_BACKEND`
+  - `uniform_face` (recommended for your request): uniformly colors detected facial skin
+  - `yolo_acne`: uses a YOLO acne detector for acne heatmaps (lesion-localized)
+  - `patch` (fallback): uses patch-based CLIP localization (slow, less accurate)
+- `ACNE_DETECT_MODEL_REPO` (default: `Tinny-Robot/acne`)
+- `ACNE_DETECT_MODEL_FILE` (default: `acne.pt`)
+- `ACNE_DETECT_CONF` (default: `0.35`) confidence threshold
+- `ACNE_DETECT_IOU` (default: `0.55`) NMS IoU threshold
+- `ACNE_DETECT_MAX_DET` (default: `250`) max detections per image
+- `ACNE_HEATMAP_RADIUS_RATIO` (default: `0.55`) detection spot radius as ratio of box size
+- `UNIFORM_FACE_ALPHA` (default: `120`) alpha strength for `uniform_face` mode (0-255)

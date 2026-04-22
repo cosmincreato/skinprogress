@@ -89,7 +89,8 @@ builder.Services.AddHttpClient("AiAnalyzer", client =>
 {
     var aiBaseUrl = builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:8001";
     client.BaseAddress = new Uri(aiBaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(180);
+    // First run may include model downloads; keep this generous.
+    client.Timeout = TimeSpan.FromMinutes(15);
 });
 
 builder.Services.AddAuthentication(options =>

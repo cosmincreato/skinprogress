@@ -144,7 +144,8 @@ Open `View All` gallery and click **Analyze Set** on any daily card.
 
 ### Notes
 
-- Current analyzer is a zero-shot CLIP baseline for MVP.
+- Current analyzer uses a dedicated acne severity classifier by default (and CLIP for redness/bags).
+- Heatmap overlay is disabled by default because it is slow; you can enable it via `HEATMAP_ENABLED=1`.
 - Output is informational only and not a medical diagnosis.
 
 ---

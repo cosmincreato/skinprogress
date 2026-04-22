@@ -46,3 +46,4 @@ appsettings.Local.json
 specs/
 .specify/
 .github/
+ai-service/venv

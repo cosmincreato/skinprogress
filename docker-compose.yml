@@ -22,6 +22,16 @@ services:
       - "8001:8001"
     environment:
       - HF_HOME=/tmp/huggingface
+      - MODEL_BACKEND=acne_severity
+      - HEATMAP_ENABLED=1
+      - HEATMAP_BACKEND=uniform_face
+      - ACNE_DETECT_MODEL_REPO=Tinny-Robot/acne
+      - ACNE_DETECT_MODEL_FILE=acne.pt
+      - PRELOAD_MODELS=1
+      - ACNE_DETECT_CONF=0.40
+      - UNIFORM_FACE_ALPHA=130
+    volumes:
+      - hf_cache:/tmp/huggingface
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s
@@ -31,3 +41,4 @@ services:
 
 volumes:
   db_data:
+  hf_cache:
