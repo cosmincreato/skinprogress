@@ -153,9 +153,39 @@ def _score_acne_severity(image: Image.Image) -> tuple[float, Dict[str, float]]:
       - acne_score: float in [0, 1]
       - raw_scores: per-severity probability distribution (label -> prob)
 
-    Model outputs classes like: "-1 (Clear Skin)" .. "4 (Very Severe Acne)".
-    We map severity to a continuous acne score by normalizing the expected severity.
+    Uses blemish detection (HSV color-based) for more accurate acne scoring.
+    Falls back to classifier if detection fails.
     """
+    # First try to detect blemishes via color-based method
+    skin_mask = _build_skin_mask(image)
+    face_mask = _build_face_focus_mask(image.width, image.height, image)
+    
+    blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
+    num_blemishes = len(blemishes)
+    
+    print(f"DEBUG _score_acne_severity: Detected {num_blemishes} blemishes via color-based detection")
+    
+    # Calculate acne score based on blemish count and severity
+    if num_blemishes > 0:
+        # Average severity across detected blemishes
+        avg_severity = np.mean([b.get('severity', 0.5) for b in blemishes])
+        
+        # Map blemish count to score:
+        # 1-3 blemishes: 0.1-0.2 (mild)
+        # 4-10 blemishes: 0.3-0.5 (moderate)
+        # 11+ blemishes: 0.6-1.0 (severe)
+        count_score = min(1.0, num_blemishes / 20.0)
+        
+        # Combine count and severity scores
+        acne_score = (count_score * 0.6 + avg_severity * 0.4)
+        acne_score = float(np.clip(acne_score, 0.0, 1.0))
+        
+        print(f"DEBUG _score_acne_severity: Using color-based score = {acne_score} (count_score={count_score}, avg_severity={avg_severity})")
+        return acne_score, {"blemish_count": num_blemishes}
+    
+    # Fallback to classifier if no blemishes detected
+    print(f"DEBUG _score_acne_severity: No blemishes found, using classifier fallback")
+    
     predictions = _get_acne_classifier()(image)
 
     items: list[dict] = predictions if isinstance(predictions, list) else []
@@ -435,21 +465,6 @@ def _detect_blemishes_by_color(image: Image.Image, skin_mask: np.ndarray, face_m
         import traceback
         traceback.print_exc()
         return []
-    """
-    Returns RGB color based on severity (0-1 scale).
-    0.0-0.3: Green (mild)
-    0.3-0.7: Yellow (moderate)
-    0.7-1.0: Red (severe)
-    """
-    if severity_score < 0.3:
-        # Green: 34, 197, 94
-        return (34, 197, 94)
-    elif severity_score < 0.7:
-        # Yellow: 250, 204, 21
-        return (250, 204, 21)
-    else:
-        # Red: 239, 68, 68
-        return (239, 68, 68)
 
 
 def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
@@ -765,6 +780,9 @@ def analyze_set(
         f"Most likely condition trend: {overall_label.replace('_', ' ')} "
         f"({overall_confidence * 100:.1f}% confidence)."
     )
+    
+    print(f"[analyze_set] Returning response with overall_scores: {overall_scores}")
+    print(f"[analyze_set] Per-angle scores: {[(angle, scores['scores']) for angle, scores in per_angle.items()]}")
 
     return {
         "user_id": user_id,

@@ -13,6 +13,14 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5002',
         changeOrigin: true
+      },
+      '/heatmaps': {
+        target: 'http://localhost:5002',
+        changeOrigin: true
+      },
+      '/selfies': {
+        target: 'http://localhost:5002',
+        changeOrigin: true
       }
     }
   }

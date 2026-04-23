@@ -497,12 +497,334 @@ public class UsersController : ControllerBase
         try
         {
             var json = JsonSerializer.Deserialize<JsonElement>(body);
+
+            Console.WriteLine($"AnalyzeSelfieSet - Response from AI service: {body}");
+            Console.WriteLine($"AnalyzeSelfieSet - Parsed JSON element: {json}");
+
+            // Check if overall_scores exists
+            if (json.TryGetProperty("overall_scores", out var scoresElement))
+            {
+                Console.WriteLine($"AnalyzeSelfieSet - overall_scores found: {scoresElement}");
+            }
+            else
+            {
+                Console.WriteLine($"AnalyzeSelfieSet - No overall_scores in response!");
+            }
+
+            // Save heatmap to database
+            try
+            {
+                await SaveAnalysisHeatmapAsync(json, id, targetDate);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the request
+                Console.WriteLine($"Error saving heatmap to database: {ex.Message}");
+                Console.WriteLine($"Error saving heatmap stack trace: {ex.StackTrace}");
+            }
+
             return Ok(json);
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"AnalyzeSelfieSet - Exception during JSON parse: {ex}");
             return StatusCode(StatusCodes.Status502BadGateway, new { message = "AI analysis returned an invalid response." });
         }
+    }
+
+    /// <summary>
+    /// Saves the heatmap overlay from AI analysis to database.
+    /// Extracts heatmap data URL from front angle, saves as PNG file, and creates AnalysisResult record.
+    /// </summary>
+    private async Task SaveAnalysisHeatmapAsync(JsonElement analysisJson, Guid userId, DateTime analysisDate)
+    {
+        try
+        {
+            // Log full response for debugging
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - Full response: {analysisJson}");
+
+            // Extract per_angle data
+            if (!analysisJson.TryGetProperty("per_angle", out var perAngleElement))
+            {
+                Console.WriteLine("SaveAnalysisHeatmapAsync - No per_angle found");
+                return;
+            }
+
+            var perAngle = perAngleElement.Deserialize<Dictionary<string, JsonElement>>();
+            if (perAngle == null)
+            {
+                Console.WriteLine("SaveAnalysisHeatmapAsync - perAngle is null");
+                return;
+            }
+
+            // Create heatmap directory
+            var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var heatmapDir = Path.Combine(webRootPath, "heatmaps", userId.ToString());
+            Directory.CreateDirectory(heatmapDir);
+
+            // Save heatmaps for each angle (front, left, right)
+            var heatmapUrls = new Dictionary<string, string>();
+            foreach (var angle in new[] { "front", "left", "right" })
+            {
+                if (!perAngle.ContainsKey(angle))
+                {
+                    Console.WriteLine($"SaveAnalysisHeatmapAsync - No {angle} angle data");
+                    continue;
+                }
+
+                var angleData = perAngle[angle];
+                if (!angleData.TryGetProperty("heatmap_overlay_data_url", out var heatmapElement))
+                {
+                    Console.WriteLine($"SaveAnalysisHeatmapAsync - No heatmap_overlay_data_url in {angle}");
+                    continue;
+                }
+
+                var heatmapDataUrl = heatmapElement.GetString();
+                if (string.IsNullOrEmpty(heatmapDataUrl) || !heatmapDataUrl.StartsWith("data:image/png;base64,"))
+                {
+                    Console.WriteLine($"SaveAnalysisHeatmapAsync - Heatmap data URL is invalid or empty for {angle}");
+                    continue;
+                }
+
+                // Extract base64 data
+                var base64Data = heatmapDataUrl.Substring("data:image/png;base64,".Length);
+                var imageBytes = Convert.FromBase64String(base64Data);
+
+                var heatmapFileName = $"{analysisDate:yyyy-MM-dd}-{angle}.png";
+                var heatmapFilePath = Path.Combine(heatmapDir, heatmapFileName);
+
+                // Save PNG file
+                await System.IO.File.WriteAllBytesAsync(heatmapFilePath, imageBytes);
+                Console.WriteLine($"SaveAnalysisHeatmapAsync - Saved {angle} heatmap to {heatmapFilePath}");
+
+                heatmapUrls[angle] = $"/heatmaps/{userId}/{heatmapFileName}";
+            }
+
+            if (heatmapUrls.Count == 0)
+            {
+                Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle");
+                return;
+            }
+
+            // Extract severity scores for AnalysisResult
+            var acneSeverity = ExtractSeverityScore(analysisJson, "acne");
+            var rednessSeverity = ExtractSeverityScore(analysisJson, "redness");
+            var underEyeBagsSeverity = ExtractSeverityScore(analysisJson, "under_eye_bags");
+
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - Extracted scores: acne={acneSeverity}, redness={rednessSeverity}, underEyeBags={underEyeBagsSeverity}");
+
+            // Create AnalysisResult record
+            var analysisResult = new AnalysisResult
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId.ToString(),
+                SelfieId = userId,
+                Timestamp = DateTime.SpecifyKind(analysisDate.Date, DateTimeKind.Utc),
+                AcneSeverity = (int?)Math.Round(acneSeverity * 10),
+                RednessSeverity = (int?)Math.Round(rednessSeverity * 10),
+                UnderEyeBagsSeverity = (int?)Math.Round(underEyeBagsSeverity * 10),
+                Status = "Completed",
+                HeatmapImageUrl = heatmapUrls.ContainsKey("front") ? heatmapUrls["front"] : null,
+                HeatmapFrontUrl = heatmapUrls.ContainsKey("front") ? heatmapUrls["front"] : null,
+                HeatmapLeftUrl = heatmapUrls.ContainsKey("left") ? heatmapUrls["left"] : null,
+                HeatmapRightUrl = heatmapUrls.ContainsKey("right") ? heatmapUrls["right"] : null,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - Saved AnalysisResult: AcneSeverity={analysisResult.AcneSeverity}, RednessSeverity={analysisResult.RednessSeverity}, UnderEyeBagsSeverity={analysisResult.UnderEyeBagsSeverity}");
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - Heatmap URLs: Front={analysisResult.HeatmapFrontUrl}, Left={analysisResult.HeatmapLeftUrl}, Right={analysisResult.HeatmapRightUrl}");
+
+            _context.AnalysisResults.Add(analysisResult);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SaveAnalysisHeatmapAsync error: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Extracts severity score (0-1) from overall_scores in analysis response.
+    /// </summary>
+    private static double ExtractSeverityScore(JsonElement analysisJson, string key)
+    {
+        try
+        {
+            if (analysisJson.TryGetProperty("overall_scores", out var scoresElement))
+            {
+                Console.WriteLine($"ExtractSeverityScore - Extracting key '{key}' from: {scoresElement.GetRawText()}");
+                var scores = scoresElement.Deserialize<Dictionary<string, double>>();
+                if (scores != null)
+                {
+                    Console.WriteLine($"ExtractSeverityScore - Available keys in overall_scores: {string.Join(", ", scores.Keys)}");
+                    if (scores.TryGetValue(key, out var score))
+                    {
+                        Console.WriteLine($"ExtractSeverityScore - Found {key}={score}");
+                        return Math.Clamp(score, 0.0, 1.0);
+                    }
+                    Console.WriteLine($"ExtractSeverityScore - Key '{key}' not found in overall_scores");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ExtractSeverityScore error for key '{key}': {ex.Message}");
+        }
+        return 0.0;
+    }
+
+    /// <summary>
+    /// Gets the heatmap analysis result for a specific date if it exists in the database.
+    /// Used by gallery to display cached heatmaps without re-analyzing.
+    /// </summary>
+    [HttpGet("{id}/analysis/{date}")]
+    [Authorize]
+    public async Task<IActionResult> GetAnalysisForDate(Guid id, string date)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+            {
+                return Forbid();
+            }
+
+            if (!DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsedDate))
+            {
+                return BadRequest(new { message = "Date must be in yyyy-MM-dd format." });
+            }
+
+            var targetDate = parsedDate.Date;
+            Console.WriteLine($"GetAnalysisForDate - Looking for analysis: userId={id}, date={targetDate:yyyy-MM-dd}");
+
+            // Find AnalysisResult for this user and date
+            var analysis = await _context.AnalysisResults
+                .Where(ar => ar.UserId == id.ToString() && ar.Timestamp.Date == targetDate)
+                .FirstOrDefaultAsync();
+
+            if (analysis == null)
+            {
+                Console.WriteLine($"GetAnalysisForDate - No analysis found for userId={id}, date={targetDate:yyyy-MM-dd}");
+                return NotFound(new { message = "No analysis found for this date." });
+            }
+
+            Console.WriteLine($"GetAnalysisForDate - Found analysis: Acne={analysis.AcneSeverity}, Redness={analysis.RednessSeverity}");
+
+            return Ok(new
+            {
+                acneSeverity = analysis.AcneSeverity,
+                rednessSeverity = analysis.RednessSeverity,
+                heatmapImageUrl = analysis.HeatmapImageUrl,
+                timestamp = analysis.Timestamp,
+                status = analysis.Status
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetAnalysisForDate - Exception: {ex}");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error retrieving analysis", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Gets all analysis results for a user, ordered by date descending.
+    /// Used by gallery to load all cached analyses for trend analysis and graphs.
+    /// </summary>
+    [HttpGet("{id}/analyses")]
+    [Authorize]
+    public async Task<IActionResult> GetAllAnalyses(Guid id)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+        {
+            return Forbid();
+        }
+
+        var analyses = await _context.AnalysisResults
+            .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
+            .OrderByDescending(ar => ar.Timestamp)
+            .Select(ar => new
+            {
+                date = ar.Timestamp.ToString("yyyy-MM-dd"),
+                acneSeverity = ar.AcneSeverity,
+                rednessSeverity = ar.RednessSeverity,
+                underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
+                inflammationSeverity = ar.InflammationSeverity,
+                foreheadSeverity = ar.ForeheadSeverity,
+                leftCheekSeverity = ar.LeftCheekSeverity,
+                rightCheekSeverity = ar.RightCheekSeverity,
+                chinSeverity = ar.ChinSeverity,
+                noseSeverity = ar.NoseSeverity,
+                heatmapImageUrl = ar.HeatmapImageUrl,
+                heatmapFrontUrl = ar.HeatmapFrontUrl,
+                heatmapLeftUrl = ar.HeatmapLeftUrl,
+                heatmapRightUrl = ar.HeatmapRightUrl,
+                timestamp = ar.Timestamp,
+                status = ar.Status
+            })
+            .ToListAsync();
+
+        Console.WriteLine($"GetAllAnalyses for user {id}: Found {analyses.Count} completed analyses");
+        foreach (var a in analyses)
+        {
+            Console.WriteLine($"  Date: {a.date}");
+            Console.WriteLine($"    Acne: {a.acneSeverity ?? -1} (null if -1)");
+            Console.WriteLine($"    Redness: {a.rednessSeverity ?? -1} (null if -1)");
+            Console.WriteLine($"    Inflammation: {a.inflammationSeverity ?? -1} (null if -1)");
+            Console.WriteLine($"    Heatmap URLs:");
+            Console.WriteLine($"      Front: {a.heatmapFrontUrl}");
+            Console.WriteLine($"      Left: {a.heatmapLeftUrl}");
+            Console.WriteLine($"      Right: {a.heatmapRightUrl}");
+            Console.WriteLine($"      Legacy: {a.heatmapImageUrl}");
+        }
+
+        return Ok(analyses);
+    }
+
+    /// <summary>
+    /// Debug endpoint: Returns ALL analysis results (including incomplete ones) for a user.
+    /// </summary>
+    [HttpGet("{id}/analyses-debug")]
+    [Authorize]
+    public async Task<IActionResult> GetAllAnalysesDebug(Guid id)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+        {
+            return Forbid();
+        }
+
+        var analyses = await _context.AnalysisResults
+            .Where(ar => ar.UserId == id.ToString())
+            .OrderByDescending(ar => ar.Timestamp)
+            .Select(ar => new
+            {
+                id = ar.Id,
+                date = ar.Timestamp.ToString("yyyy-MM-dd"),
+                acneSeverity = ar.AcneSeverity,
+                rednessSeverity = ar.RednessSeverity,
+                inflammationSeverity = ar.InflammationSeverity,
+                heatmapImageUrl = ar.HeatmapImageUrl,
+                timestamp = ar.Timestamp,
+                status = ar.Status,
+                createdAt = ar.CreatedAt
+            })
+            .ToListAsync();
+
+        Console.WriteLine($"GetAllAnalysesDebug for user {id}: Found {analyses.Count} total analyses");
+        foreach (var a in analyses)
+        {
+            Console.WriteLine($"  ID: {a.id}, Date: {a.date}, Status: {a.status}, Acne: {a.acneSeverity}, Redness: {a.rednessSeverity}, Heatmap: {a.heatmapImageUrl}");
+        }
+
+        return Ok(new { totalCount = analyses.Count, analyses = analyses });
     }
 
     private static string? NormalizeAngle(string? angle)

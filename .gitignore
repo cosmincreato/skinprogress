@@ -43,7 +43,6 @@ appsettings.Local.json
 
 ## Editor Specific
 .vscode/
-specs/
-.specify/
+.claude/
 .github/
 ai-service/venv

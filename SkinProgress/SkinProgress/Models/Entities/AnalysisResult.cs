@@ -62,6 +62,12 @@ namespace SkinProgress.Models.Entities
         public int? RednessSeverity { get; set; }
 
         /// <summary>
+        /// Under-eye bags severity (0-10 scale).
+        /// From CLIP model output.
+        /// </summary>
+        public int? UnderEyeBagsSeverity { get; set; }
+
+        /// <summary>
         /// Forehead-specific severity (0-10 scale).
         /// Used for zone-level analysis in heatmaps and period comparison (FR-007).
         /// </summary>
