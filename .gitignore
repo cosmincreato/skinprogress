@@ -43,7 +43,14 @@ appsettings.Local.json
 
 ## Editor Specific
 .vscode/
-specs/
-.specify/
+.claude/
 .github/
-ai-service/venv
+
+# Byte-compiled / optimized / DLL files
+ai-service/__pycache__/
+ai-service/*.pyc
+
+# Local virtual environments
+ai-service/.venv/
+
+.env

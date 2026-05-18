@@ -4,14 +4,16 @@ import threading
 from io import BytesIO
 from typing import Dict
 from dotenv import load_dotenv
-
-load_dotenv()
-
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image
 from transformers import pipeline
+from huggingface_hub import hf_hub_download
+from ultralytics import YOLO
+
+load_dotenv()
+
 
 app = FastAPI(title="SkinProgress AI Analyzer", version="0.2.0")
 
@@ -32,8 +34,18 @@ FACE_EXPAND_Y_TOP = 0.15
 FACE_EXPAND_Y_BOTTOM = 0.25
 
 MODEL_BACKEND = os.getenv("MODEL_BACKEND", "acne_severity").strip().lower()
-HEATMAP_ENABLED = os.getenv("HEATMAP_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
-PRELOAD_MODELS = os.getenv("PRELOAD_MODELS", "0").strip().lower() in {"1", "true", "yes", "on"}
+HEATMAP_ENABLED = os.getenv("HEATMAP_ENABLED", "1").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+PRELOAD_MODELS = os.getenv("PRELOAD_MODELS", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 HEATMAP_BACKEND = os.getenv("HEATMAP_BACKEND", "yolo_acne").strip().lower()
 
 CLIP_MODEL_ID = os.getenv("CLIP_MODEL_ID", "openai/clip-vit-base-patch32").strip()
@@ -80,9 +92,6 @@ def _get_acne_detector():
     if _acne_detector is not None:
         return _acne_detector
 
-    from huggingface_hub import hf_hub_download
-    from ultralytics import YOLO
-
     weights_path = hf_hub_download(
         repo_id=ACNE_DETECT_MODEL_REPO,
         filename=ACNE_DETECT_MODEL_FILE,
@@ -121,7 +130,9 @@ def _load_image(upload: UploadFile) -> Image.Image:
         ) from exc
 
 
-def _predict_scores(image: Image.Image, candidate_labels: list[str]) -> Dict[str, float]:
+def _predict_scores(
+    image: Image.Image, candidate_labels: list[str]
+) -> Dict[str, float]:
     predictions = _get_clip_classifier()(image, candidate_labels=candidate_labels)
 
     scores: Dict[str, float] = {label: 0.0 for label in candidate_labels}
@@ -132,7 +143,11 @@ def _predict_scores(image: Image.Image, candidate_labels: list[str]) -> Dict[str
                 continue
             label = item.get("label")
             score = item.get("score")
-            if isinstance(label, str) and isinstance(score, (int, float)) and label in scores:
+            if (
+                isinstance(label, str)
+                and isinstance(score, (int, float))
+                and label in scores
+            ):
                 scores[label] = float(score)
         return scores
 
@@ -141,7 +156,11 @@ def _predict_scores(image: Image.Image, candidate_labels: list[str]) -> Dict[str
         raw_scores = predictions.get("scores")
         if isinstance(labels, list) and isinstance(raw_scores, list):
             for label, score in zip(labels, raw_scores):
-                if isinstance(label, str) and isinstance(score, (int, float)) and label in scores:
+                if (
+                    isinstance(label, str)
+                    and isinstance(score, (int, float))
+                    and label in scores
+                ):
                     scores[label] = float(score)
 
     return scores
@@ -153,9 +172,43 @@ def _score_acne_severity(image: Image.Image) -> tuple[float, Dict[str, float]]:
       - acne_score: float in [0, 1]
       - raw_scores: per-severity probability distribution (label -> prob)
 
-    Model outputs classes like: "-1 (Clear Skin)" .. "4 (Very Severe Acne)".
-    We map severity to a continuous acne score by normalizing the expected severity.
+    Uses blemish detection (HSV color-based) for more accurate acne scoring.
+    Falls back to classifier if detection fails.
     """
+    # First try to detect blemishes via color-based method
+    skin_mask = _build_skin_mask(image)
+    face_mask = _build_face_focus_mask(image.width, image.height, image)
+
+    blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
+    num_blemishes = len(blemishes)
+
+    print(
+        f"DEBUG _score_acne_severity: Detected {num_blemishes} blemishes via color-based detection"
+    )
+
+    # Calculate acne score based on blemish count and severity
+    if num_blemishes > 0:
+        # Average severity across detected blemishes
+        avg_severity = np.mean([b.get("severity", 0.5) for b in blemishes])
+
+        # Map blemish count to score:
+        # 1-3 blemishes: 0.1-0.2 (mild)
+        # 4-10 blemishes: 0.3-0.5 (moderate)
+        # 11+ blemishes: 0.6-1.0 (severe)
+        count_score = min(1.0, num_blemishes / 20.0)
+
+        # Combine count and severity scores
+        acne_score = count_score * 0.6 + avg_severity * 0.4
+        acne_score = float(np.clip(acne_score, 0.0, 1.0))
+
+        print(
+            f"DEBUG _score_acne_severity: Using color-based score = {acne_score} (count_score={count_score}, avg_severity={avg_severity})"
+        )
+        return acne_score, {"blemish_count": num_blemishes}
+
+    # Fallback to classifier if no blemishes detected
+    print(f"DEBUG _score_acne_severity: No blemishes found, using classifier fallback")
+
     predictions = _get_acne_classifier()(image)
 
     items: list[dict] = predictions if isinstance(predictions, list) else []
@@ -243,7 +296,7 @@ def _get_severity_color(severity_score: float) -> tuple[int, int, int]:
     0.67-1.0 (severe) = Red (239, 68, 68)
     """
     severity = np.clip(float(severity_score), 0.0, 1.0)
-    
+
     if severity < 0.33:
         # Green for mild
         return (34, 197, 94)
@@ -349,7 +402,7 @@ def _build_heatmap_overlay(
     alpha_channel = alpha_array.astype(np.uint8)
 
     overlay_rgba = np.zeros((image_height, image_width, 4), dtype=np.uint8)
-    
+
     # Apply severity-based colors: use normalized values to determine color
     for y in range(image_height):
         for x in range(image_width):
@@ -367,7 +420,9 @@ def _build_heatmap_overlay(
     return _to_png_data_url(composite)
 
 
-def _detect_blemishes_by_color(image: Image.Image, skin_mask: np.ndarray, face_mask: np.ndarray) -> list[dict]:
+def _detect_blemishes_by_color(
+    image: Image.Image, skin_mask: np.ndarray, face_mask: np.ndarray
+) -> list[dict]:
     """
     Detect blemishes using color analysis on skin regions.
     Looks for reddish/brownish spots that stand out from surrounding skin.
@@ -375,81 +430,75 @@ def _detect_blemishes_by_color(image: Image.Image, skin_mask: np.ndarray, face_m
     try:
         image_rgb = np.array(image)
         image_hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
-        
+
         # Create detection region: intersection of skin and face masks
         detection_region = (skin_mask > 0.5) & (face_mask > 0.3)
-        
+
         if detection_region.sum() < 100:
             print(f"DEBUG: detection_region too small: {detection_region.sum()} pixels")
             return []
-        
+
         # Extract HSV channels
         h_channel = image_hsv[:, :, 0].astype(np.float32)
         s_channel = image_hsv[:, :, 1].astype(np.float32)
         v_channel = image_hsv[:, :, 2].astype(np.float32)
-        
+
         # Detect reddish/brownish spots (acne is typically darker and more saturated)
         # Red hues: 0-20 or 160-180, but acne can be brownish (10-30)
-        is_reddish = ((h_channel < 25) | (h_channel > 155)) & (s_channel > 40) & (v_channel < 200)
-        
+        is_reddish = (
+            ((h_channel < 25) | (h_channel > 155))
+            & (s_channel > 40)
+            & (v_channel < 200)
+        )
+
         # Further refine: look for spots that are darker than surrounding skin
         local_v_mean = cv2.GaussianBlur(v_channel, (31, 31), 0)
         is_darker = v_channel < (local_v_mean - 15)
-        
+
         blemish_mask = detection_region & is_reddish & is_darker
-        
-        print(f"DEBUG: Blemish detection - is_reddish:{is_reddish.sum()}, is_darker:{is_darker.sum()}, combined:{blemish_mask.sum()}")
-        
+
+        print(
+            f"DEBUG: Blemish detection - is_reddish:{is_reddish.sum()}, is_darker:{is_darker.sum()}, combined:{blemish_mask.sum()}"
+        )
+
         # Find connected components (individual blemishes)
         num_labels, labels = cv2.connectedComponents(blemish_mask.astype(np.uint8))
-        
+
         blemishes = []
         for label in range(1, num_labels):
-            component = (labels == label)
+            component = labels == label
             if component.sum() < 10:  # Skip tiny noise (< 10 pixels)
                 continue
-            
+
             y_indices, x_indices = np.where(component)
             cx = int(np.mean(x_indices))
             cy = int(np.mean(y_indices))
             area = component.sum()
             radius = max(3, int(np.sqrt(area / np.pi)))
-            
+
             # Estimate severity based on how dark and saturated the spot is
             spot_v = v_channel[component].mean()
             spot_s = s_channel[component].mean()
-            severity = np.clip(1.0 - (spot_v / 255.0), 0.1, 1.0)  # Darker = higher severity
-            
+            severity = np.clip(
+                1.0 - (spot_v / 255.0), 0.1, 1.0
+            )  # Darker = higher severity
+
             blemishes.append({
-                'cx': cx,
-                'cy': cy,
-                'radius': radius,
-                'severity': severity,
-                'area': area,
+                "cx": cx,
+                "cy": cy,
+                "radius": radius,
+                "severity": severity,
+                "area": area,
             })
-        
+
         print(f"DEBUG: Blemish detection complete: {len(blemishes)} blemishes found")
         return blemishes
     except Exception as e:
         print(f"DEBUG: Error in _detect_blemishes_by_color: {e}")
         import traceback
+
         traceback.print_exc()
         return []
-    """
-    Returns RGB color based on severity (0-1 scale).
-    0.0-0.3: Green (mild)
-    0.3-0.7: Yellow (moderate)
-    0.7-1.0: Red (severe)
-    """
-    if severity_score < 0.3:
-        # Green: 34, 197, 94
-        return (34, 197, 94)
-    elif severity_score < 0.7:
-        # Yellow: 250, 204, 21
-        return (250, 204, 21)
-    else:
-        # Red: 239, 68, 68
-        return (239, 68, 68)
 
 
 def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
@@ -499,39 +548,41 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
     # Try color-based detection first (more robust for actual blemishes)
     blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
     print(f"DEBUG: Color-based detection found {len(blemishes)} blemishes")
-    
+
     # Create heatmap from blemishes
     heatmap = np.zeros((image_height, image_width), dtype=np.float32)
-    
+
     for blemish in blemishes:
-        cx = blemish['cx']
-        cy = blemish['cy']
-        severity = float(blemish['severity'])
-        
+        cx = blemish["cx"]
+        cy = blemish["cy"]
+        severity = float(blemish["severity"])
+
         # Create Gaussian blob centered at blemish with intensity based on severity
         y_indices, x_indices = np.ogrid[:image_height, :image_width]
         distance = np.sqrt((x_indices - cx) ** 2 + (y_indices - cy) ** 2)
-        
+
         # Gaussian with sigma=50 for smooth gradient
-        gaussian_blob = severity * np.exp(-(distance ** 2) / (2 * 50 ** 2))
+        gaussian_blob = severity * np.exp(-(distance**2) / (2 * 50**2))
         heatmap = np.maximum(heatmap, gaussian_blob)
-    
+
     # Apply face/skin mask to heatmap
     heatmap *= face_mask * skin_mask
-    
+
     # Gaussian blur for extra smoothing
     heatmap = cv2.GaussianBlur(heatmap, (61, 61), 0)
-    
+
     # Normalize heatmap to [0, 1]
     heatmap_max = heatmap.max()
     if heatmap_max > 0:
         heatmap = heatmap / heatmap_max
-    
-    print(f"DEBUG: Heatmap generated, min={heatmap.min():.3f}, max={heatmap.max():.3f}, mean={heatmap.mean():.3f}")
-    
+
+    print(
+        f"DEBUG: Heatmap generated, min={heatmap.min():.3f}, max={heatmap.max():.3f}, mean={heatmap.mean():.3f}"
+    )
+
     # Create overlay with gradient colors based on heatmap
     overlay_rgba = np.zeros((image_height, image_width, 4), dtype=np.uint8)
-    
+
     # Apply heatmap as base (green for healthy, ramping to red for problems)
     for y in range(image_height):
         for x in range(image_width):
@@ -543,19 +594,23 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
                 overlay_rgba[y, x, 1] = g
                 overlay_rgba[y, x, 2] = b
                 overlay_rgba[y, x, 3] = alpha
-    
+
     detections_found = (overlay_rgba[..., 3] > 0).any()
 
     if not detections_found:
         print(f"DEBUG: No detections found, returning None")
         return None
 
-    print(f"DEBUG: Final overlay: non-zero alpha pixels = {(overlay_rgba[..., 3] > 0).sum()}, RGB values: min={overlay_rgba[..., :3].min()}, max={overlay_rgba[..., :3].max()}")
-    
+    print(
+        f"DEBUG: Final overlay: non-zero alpha pixels = {(overlay_rgba[..., 3] > 0).sum()}, RGB values: min={overlay_rgba[..., :3].min()}, max={overlay_rgba[..., :3].max()}"
+    )
+
     overlay_image = Image.fromarray(overlay_rgba, mode="RGBA")
     composite = Image.alpha_composite(image.convert("RGBA"), overlay_image)
     result = _to_png_data_url(composite)
-    print(f"DEBUG: Overlay generated successfully, result length={len(result) if result else 0}")
+    print(
+        f"DEBUG: Overlay generated successfully, result length={len(result) if result else 0}"
+    )
     return result
 
 
@@ -624,7 +679,9 @@ def _build_face_focus_mask(
         right = min(image_width, int(x + w + w * FACE_EXPAND_X))
         top = max(0, int(y - h * FACE_EXPAND_Y_TOP))
         bottom = min(image_height, int(y + h + h * FACE_EXPAND_Y_BOTTOM))
-        print(f"DEBUG: Haar face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}")
+        print(
+            f"DEBUG: Haar face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
+        )
         mask[top:bottom, left:right] = 1.0
     else:
         print(f"DEBUG: Haar face detection failed, using fallback ellipse")
@@ -691,11 +748,11 @@ def _build_skin_mask(image: Image.Image) -> np.ndarray:
     # Morphological operations to clean up isolated pixels and hair
     blur_kernel = max(9, (min(image.width, image.height) // 55) | 1)
     skin_mask = cv2.GaussianBlur(skin_mask, (blur_kernel, blur_kernel), sigmaX=0)
-    
+
     # Apply morphological closing to fill small holes
     morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_CLOSE, morph_kernel)
-    
+
     return np.clip(skin_mask, 0.0, 1.0)
 
 
@@ -742,7 +799,9 @@ def analyze_set(
             heatmap_target = "acne"
 
         heatmap_overlay_data_url = (
-            _safe_build_heatmap_overlay(image, heatmap_target) if HEATMAP_ENABLED else None
+            _safe_build_heatmap_overlay(image, heatmap_target)
+            if HEATMAP_ENABLED
+            else None
         )
 
         per_angle[angle] = {
@@ -764,6 +823,11 @@ def analyze_set(
     summary = (
         f"Most likely condition trend: {overall_label.replace('_', ' ')} "
         f"({overall_confidence * 100:.1f}% confidence)."
+    )
+
+    print(f"[analyze_set] Returning response with overall_scores: {overall_scores}")
+    print(
+        f"[analyze_set] Per-angle scores: {[(angle, scores['scores']) for angle, scores in per_angle.items()]}"
     )
 
     return {

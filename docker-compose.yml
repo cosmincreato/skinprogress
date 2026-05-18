@@ -3,12 +3,13 @@ services:
     image: postgres:latest
     container_name: skinprogress-db
     restart: always
+    env_file: .env
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=secpa55
-      - POSTGRES_DB=skinprogressdb
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - db_data:/var/lib/postgresql
 
@@ -18,22 +19,28 @@ services:
       dockerfile: Dockerfile
     container_name: skinprogress-ai
     restart: unless-stopped
+    env_file: .env
     ports:
-      - "8001:8001"
+      - "${AI_SERVICE_PORT}:8001"
     environment:
-      - HF_HOME=/tmp/huggingface
-      - MODEL_BACKEND=acne_severity
-      - HEATMAP_ENABLED=1
-      - HEATMAP_BACKEND=uniform_face
-      - ACNE_DETECT_MODEL_REPO=Tinny-Robot/acne
-      - ACNE_DETECT_MODEL_FILE=acne.pt
-      - PRELOAD_MODELS=1
-      - ACNE_DETECT_CONF=0.40
-      - UNIFORM_FACE_ALPHA=130
+      - HF_HOME=${HF_HOME}
+      - MODEL_BACKEND=${MODEL_BACKEND}
+      - HEATMAP_ENABLED=${HEATMAP_ENABLED}
+      - HEATMAP_BACKEND=${HEATMAP_BACKEND}
+      - ACNE_DETECT_MODEL_REPO=${ACNE_DETECT_MODEL_REPO}
+      - ACNE_DETECT_MODEL_FILE=${ACNE_DETECT_MODEL_FILE}
+      - PRELOAD_MODELS=${PRELOAD_MODELS}
+      - ACNE_DETECT_CONF=${ACNE_DETECT_CONF}
+      - ACNE_DETECT_IOU=${ACNE_DETECT_IOU}
+      - ACNE_DETECT_MAX_DET=${ACNE_DETECT_MAX_DET}
+      - ACNE_HEATMAP_RADIUS_RATIO=${ACNE_HEATMAP_RADIUS_RATIO}
+      - UNIFORM_FACE_ALPHA=${UNIFORM_FACE_ALPHA}
+      - CLIP_MODEL_ID=${CLIP_MODEL_ID}
+      - ACNE_MODEL_ID=${ACNE_MODEL_ID}
     volumes:
       - hf_cache:/tmp/huggingface
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${AI_SERVICE_PORT}/health')"]
       interval: 30s
       timeout: 10s
       retries: 5
