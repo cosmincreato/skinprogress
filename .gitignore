@@ -45,4 +45,12 @@ appsettings.Local.json
 .vscode/
 .claude/
 .github/
-ai-service/venv
+
+# Byte-compiled / optimized / DLL files
+ai-service/__pycache__/
+ai-service/*.pyc
+
+# Local virtual environments
+ai-service/.venv/
+
+.env

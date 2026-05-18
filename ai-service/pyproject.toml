@@ -1,0 +1,16 @@
+[project]
+name = "ai-service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.136.1",
+    "opencv-python>=4.13.0.92",
+    "pillow>=12.2.0",
+    "python-multipart>=0.0.29",
+    "transformers>=5.8.1",
+    "ultralytics>=8.4.51",
+    "uvicorn>=0.47.0",
+]
