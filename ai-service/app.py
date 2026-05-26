@@ -207,7 +207,7 @@ def _score_acne_severity(image: Image.Image) -> tuple[float, Dict[str, float]]:
         return acne_score, {"blemish_count": num_blemishes}
 
     # Fallback to classifier if no blemishes detected
-    print(f"DEBUG _score_acne_severity: No blemishes found, using classifier fallback")
+    print("DEBUG _score_acne_severity: No blemishes found, using classifier fallback")
 
     predictions = _get_acne_classifier()(image)
 
@@ -478,7 +478,7 @@ def _detect_blemishes_by_color(
 
             # Estimate severity based on how dark and saturated the spot is
             spot_v = v_channel[component].mean()
-            spot_s = s_channel[component].mean()
+
             severity = np.clip(
                 1.0 - (spot_v / 255.0), 0.1, 1.0
             )  # Darker = higher severity
@@ -529,21 +529,12 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
         return None
 
     xyxy = boxes.xyxy
-    conf = getattr(boxes, "conf", None)
     if xyxy is None:
         return None
-
-    xyxy_np = xyxy.detach().cpu().numpy() if hasattr(xyxy, "detach") else np.array(xyxy)
-    conf_np = (
-        conf.detach().cpu().numpy()
-        if conf is not None and hasattr(conf, "detach")
-        else (np.array(conf) if conf is not None else None)
-    )
 
     # Build face and skin masks for stricter filtering
     face_mask = _build_face_focus_mask(image_width, image_height, image)
     skin_mask = _build_skin_mask(image)
-    combined_mask = np.clip(face_mask * skin_mask, 0.0, 1.0)
 
     # Try color-based detection first (more robust for actual blemishes)
     blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
@@ -598,7 +589,7 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
     detections_found = (overlay_rgba[..., 3] > 0).any()
 
     if not detections_found:
-        print(f"DEBUG: No detections found, returning None")
+        print("DEBUG: No detections found, returning None")
         return None
 
     print(
@@ -684,7 +675,7 @@ def _build_face_focus_mask(
         )
         mask[top:bottom, left:right] = 1.0
     else:
-        print(f"DEBUG: Haar face detection failed, using fallback ellipse")
+        print("DEBUG: Haar face detection failed, using fallback ellipse")
         center_x = image_width // 2
         center_y = int(image_height * 0.42)
         radius_x = int(image_width * 0.22)
