@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SkinProgress.Data;
 using SkinProgress.Models.Entities;
+using SkinProgress.Services.Interfaces;
 using System.Security.Claims;
 
 namespace SkinProgress.Controllers;
@@ -13,10 +14,12 @@ namespace SkinProgress.Controllers;
 public class HabitsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IQdrantService _qdrantService;
 
-    public HabitsController(AppDbContext context)
+    public HabitsController(AppDbContext context, IQdrantService qdrantService)
     {
         _context = context;
+        _qdrantService = qdrantService;
     }
 
     private Guid GetUserId()
@@ -103,6 +106,28 @@ public class HabitsController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+
+        // Store habit completion activity in Qdrant
+        try
+        {
+            var todayCompletions = await _context.HabitCompletions
+                .Where(hc => hc.UserId == userId && hc.Date.Date == today)
+                .CountAsync();
+
+            var eventData = new Dictionary<string, string>
+            {
+                { "habit_name", request.HabitName },
+                { "habit_count", todayCompletions.ToString() }
+            };
+
+            await _qdrantService.StoreUserActivityAsync(userId.ToString(), "habit_completion", eventData);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error storing habit completion in Qdrant: {ex.Message}");
+            // Don't throw - Qdrant failure shouldn't block habit tracking
+        }
+
         return Ok();
     }
 
