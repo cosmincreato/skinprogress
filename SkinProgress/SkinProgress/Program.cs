@@ -93,6 +93,9 @@ builder.Services.AddHttpClient("AiAnalyzer", client =>
     client.Timeout = TimeSpan.FromMinutes(15);
 });
 
+// Register Qdrant vector database client
+builder.Services.AddHttpClient<IQdrantService, QdrantService>();
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

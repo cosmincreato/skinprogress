@@ -28,13 +28,15 @@ public class UsersController : ControllerBase
     private readonly IFileService _fileService;
     private readonly IWebHostEnvironment _environment;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IQdrantService _qdrantService;
 
-    public UsersController(AppDbContext context, IFileService fileService, IWebHostEnvironment environment, IHttpClientFactory httpClientFactory)
+    public UsersController(AppDbContext context, IFileService fileService, IWebHostEnvironment environment, IHttpClientFactory httpClientFactory, IQdrantService qdrantService)
     {
         _context = context;
         _fileService = fileService;
         _environment = environment;
         _httpClientFactory = httpClientFactory;
+        _qdrantService = qdrantService;
     }
 
     private string GetFullUrl(string relativeUrl)
@@ -205,35 +207,38 @@ public class UsersController : ControllerBase
             return BadRequest(new { message = "No file uploaded." });
         }
 
+        var today = DateTime.UtcNow.Date;
+        
+        // Check database for existing today's SelfieCapture to see if this angle was already uploaded
+        var todaysSelfieCapture = await _context.SelfieCaptures
+            .FirstOrDefaultAsync(s => s.UserId == userId && s.CaptureDate == today && s.DeletedAt == null);
+
+        if (todaysSelfieCapture != null)
+        {
+            // Check if this angle was already uploaded
+            if (normalizedAngle == "front" && todaysSelfieCapture.FrontPhotoId.HasValue)
+            {
+                return Conflict(new { message = $"You already uploaded the front selfie for today." });
+            }
+            if (normalizedAngle == "left" && todaysSelfieCapture.LeftPhotoId.HasValue)
+            {
+                return Conflict(new { message = $"You already uploaded the left selfie for today." });
+            }
+            if (normalizedAngle == "right" && todaysSelfieCapture.RightPhotoId.HasValue)
+            {
+                return Conflict(new { message = $"You already uploaded the right selfie for today." });
+            }
+
+            // Check if already complete
+            if (todaysSelfieCapture.FrontPhotoId.HasValue && todaysSelfieCapture.LeftPhotoId.HasValue && todaysSelfieCapture.RightPhotoId.HasValue)
+            {
+                return Conflict(new { message = "You already completed your 3 selfies for today." });
+            }
+        }
+
         var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         var userSelfieFolder = Path.Combine(webRootPath, "selfies", userId.ToString());
         Directory.CreateDirectory(userSelfieFolder);
-
-        var today = DateTime.UtcNow.Date;
-        var todaysSelfies = Directory.GetFiles(userSelfieFolder)
-            .Select(filePath => new
-            {
-                FilePath = filePath,
-                UploadedAt = System.IO.File.GetLastWriteTimeUtc(filePath),
-                Angle = TryExtractAngle(Path.GetFileName(filePath))
-            })
-            .Where(f => f.UploadedAt.Date == today)
-            .ToList();
-
-        if (todaysSelfies.Any(s => string.Equals(s.Angle, normalizedAngle, StringComparison.OrdinalIgnoreCase)))
-        {
-            return Conflict(new { message = $"You already uploaded the {normalizedAngle} selfie for today." });
-        }
-
-        var todaysAngles = todaysSelfies
-            .Where(s => !string.IsNullOrWhiteSpace(s.Angle))
-            .Select(s => s.Angle!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        if (todaysAngles.Count >= RequiredSelfieAngles.Count)
-        {
-            return Conflict(new { message = "You already completed your 3 selfies for today." });
-        }
 
         var extension = Path.GetExtension(file.FileName);
         if (string.IsNullOrWhiteSpace(extension))
@@ -250,6 +255,74 @@ public class UsersController : ControllerBase
         }
 
         var fileUrl = GetFullUrl($"/selfies/{userId}/{fileName}");
+
+        // Create a Photo record in the database
+        var photoId = Guid.NewGuid();
+        var photo = new Photo
+        {
+            PhotoId = photoId,
+            UserId = userId,
+            ViewType = normalizedAngle,
+            CaptureDate = today,
+            FilePath = $"/selfies/{userId}/{fileName}",
+            FileSize = file.Length,
+            MetadataId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            DeletedAt = null
+        };
+
+        // Create PhotoMetadata record
+        var metadata = new PhotoMetadata
+        {
+            MetadataId = photo.MetadataId,
+            PhotoId = photoId,
+            CaptureTimestamp = DateTime.UtcNow,
+            Brightness = 50, // Default value
+            FaceDetectionConfidence = 0.95m, // Default minimum
+            FaceCount = 1,
+            CompressionQuality = 85,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        photo.Metadata = metadata;
+        _context.Photos.Add(photo);
+        _context.PhotoMetadatas.Add(metadata);
+        await _context.SaveChangesAsync();
+
+        // Get or create SelfieCapture for today
+        var selfieCapture = todaysSelfieCapture ?? new SelfieCapture
+        {
+            CaptureId = Guid.NewGuid(),
+            UserId = userId,
+            CaptureDate = today,
+            Status = "partial",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Update the appropriate angle field
+        if (normalizedAngle == "front")
+            selfieCapture.FrontPhotoId = photoId;
+        else if (normalizedAngle == "left")
+            selfieCapture.LeftPhotoId = photoId;
+        else if (normalizedAngle == "right")
+            selfieCapture.RightPhotoId = photoId;
+
+        // Check if now complete
+        if (selfieCapture.FrontPhotoId.HasValue && selfieCapture.LeftPhotoId.HasValue && selfieCapture.RightPhotoId.HasValue)
+        {
+            selfieCapture.Status = "complete";
+        }
+
+        if (todaysSelfieCapture == null)
+        {
+            _context.SelfieCaptures.Add(selfieCapture);
+        }
+        else
+        {
+            selfieCapture.UpdatedAt = DateTime.UtcNow;
+        }
 
         // Update the last selfie date
         user.LastSelfieAt = DateTime.UtcNow;
@@ -317,6 +390,105 @@ public class UsersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Gets personalized skincare recommendations based on latest analysis and historical trends.
+    /// Uses Qdrant RAG pipeline to generate context-aware recommendations.
+    /// </summary>
+    [HttpGet("{id}/recommendations")]
+    [Authorize]
+    public async Task<IActionResult> GetRecommendations(Guid id)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            // Get the latest analysis for this user
+            var latestAnalysis = await _context.AnalysisResults
+                .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
+                .OrderByDescending(ar => ar.Timestamp)
+                .FirstOrDefaultAsync();
+
+            if (latestAnalysis == null)
+            {
+                return Ok(new { message = "No completed analyses found. Analyze your selfies to get recommendations.", recommendations = new List<object>() });
+            }
+
+            var recommendations = await _qdrantService.GenerateRecommendationsAsync(id.ToString(), latestAnalysis);
+            return Ok(new { analysisDate = latestAnalysis.Timestamp, recommendations });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetRecommendations error: {ex.Message}");
+            return StatusCode(500, new { message = "Error retrieving recommendations", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Gets analysis history stored in Qdrant vector database.
+    /// Used for RAG pipeline and historical pattern analysis.
+    /// </summary>
+    [HttpGet("{id}/analysis-history")]
+    [Authorize]
+    public async Task<IActionResult> GetAnalysisHistory(Guid id)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var history = await _qdrantService.GetUserAnalysisHistoryAsync(id.ToString());
+            return Ok(new { count = history.Count, analyses = history });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetAnalysisHistory error: {ex.Message}");
+            return StatusCode(500, new { message = "Error retrieving analysis history", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Stores user lifestyle context (habits, routines, etc.) for recommendation personalization.
+    /// </summary>
+    [HttpPost("{id}/user-context")]
+    [Authorize]
+    public async Task<IActionResult> StoreUserContext(Guid id, [FromBody] Dictionary<string, string> contextData)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            if (contextData == null || contextData.Count == 0)
+            {
+                return BadRequest(new { message = "Context data is required" });
+            }
+
+            await _qdrantService.StoreUserContextAsync(id.ToString(), contextData);
+            return Ok(new { message = "User context stored successfully" });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StoreUserContext error: {ex.Message}");
+            return StatusCode(500, new { message = "Error storing user context", error = ex.Message });
+        }
+    }
+
     // DELETE: api/users/{id}
     // Admins can delete anyone; Users can only delete themselves
     [HttpDelete("{id}")]
@@ -329,6 +501,17 @@ public class UsersController : ControllerBase
         if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
         {
             return Forbid();
+        }
+
+        try
+        {
+            // Delete user data from Qdrant for GDPR compliance
+            await _qdrantService.DeleteUserDataAsync(id.ToString());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting user data from Qdrant: {ex.Message}");
+            // Continue with database deletion even if Qdrant deletion fails
         }
 
         var user = await _context.Users.FindAsync(id);
@@ -636,6 +819,21 @@ public class UsersController : ControllerBase
 
             _context.AnalysisResults.Add(analysisResult);
             await _context.SaveChangesAsync();
+
+            // Store analysis in Qdrant for RAG pipeline
+            try
+            {
+                await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
+                
+                // Generate personalized recommendations based on analysis history
+                var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);
+                Console.WriteLine($"Generated {recommendations.Count} recommendations for user {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Qdrant storage error (non-blocking): {ex.Message}");
+                // Don't throw - Qdrant failure shouldn't block analysis workflow
+            }
         }
         catch (Exception ex)
         {

@@ -94,13 +94,31 @@ public class EmailConfirmationService : IEmailConfirmationService
             throw new InvalidOperationException("Confirmation token is required");
         }
 
-        // Find token
-        var confirmationToken = await _dbContext.UserEmailConfirmationTokens
-            .FirstOrDefaultAsync(t => t.Token == token);
+        // Normalize input: convert to uppercase and trim whitespace
+        token = token.Trim().ToUpper();
+
+        // Find token - handle both full tokens and shortened 6-char codes
+        // If token is 6 chars or less, search for tokens that START with that code
+        // Otherwise, do exact match
+        UserEmailConfirmationToken confirmationToken;
+        
+        if (token.Length <= 6)
+        {
+            // User entered the 6-character code from email
+            // Find any token that starts with this prefix (case-insensitive)
+            confirmationToken = await _dbContext.UserEmailConfirmationTokens
+                .FirstOrDefaultAsync(t => t.Token.ToUpper().StartsWith(token));
+        }
+        else
+        {
+            // Full token provided
+            confirmationToken = await _dbContext.UserEmailConfirmationTokens
+                .FirstOrDefaultAsync(t => t.Token.ToUpper() == token);
+        }
 
         if (confirmationToken == null)
         {
-            _logger.LogWarning($"Invalid confirmation token attempted");
+            _logger.LogWarning($"Invalid confirmation token attempted: {token}");
             throw new InvalidOperationException("Invalid confirmation token");
         }
 

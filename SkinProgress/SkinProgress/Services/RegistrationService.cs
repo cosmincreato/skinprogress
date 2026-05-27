@@ -106,8 +106,20 @@ public class RegistrationService : IRegistrationService
 
         _logger.LogInformation($"User registered: {email}");
 
-        // Generate confirmation token (GUID for simplicity; in production use secure random string)
+        // Generate confirmation token and store in database
         string confirmationToken = Guid.NewGuid().ToString("N");
+        var emailConfirmationToken = new UserEmailConfirmationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = newUser.Id,
+            Token = confirmationToken,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(AuthConstants.EmailConfirmationTokenExpirationHours)
+        };
+        _dbContext.UserEmailConfirmationTokens.Add(emailConfirmationToken);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation($"Confirmation token generated for user: {email}");
 
         return (newUser, confirmationToken);
     }
