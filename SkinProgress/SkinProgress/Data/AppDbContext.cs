@@ -396,7 +396,7 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(um => new { um.UserId, um.WeekStart })
-                .HasName("IX_UserMissions_UserId_WeekStart");
+                .HasDatabaseName("IX_UserMissions_UserId_WeekStart");
 
             entity.Property(um => um.Status).IsRequired().HasMaxLength(20);
         });
@@ -416,7 +416,7 @@ public class AppDbContext : DbContext
             // Index: (UserId, IsRead, CreatedAt DESC)
             entity.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt })
                 .IsDescending(false, false, true)
-                .HasName("IX_Notifications_UserId_IsRead_CreatedAt");
+                .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt");
 
             entity.Property(n => n.Type).IsRequired().HasMaxLength(50);
             entity.Property(n => n.Title).IsRequired().HasMaxLength(200);
@@ -432,7 +432,7 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(np => np.UserId)
                 .IsUnique()
-                .HasName("UX_NotificationPreferences_UserId");
+                .HasDatabaseName("UX_NotificationPreferences_UserId");
         });
 
         // -----------------------------------------------------------------------
@@ -453,7 +453,7 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(cs => cs.UserId)
-                .HasName("IX_ChatSessions_UserId");
+                .HasDatabaseName("IX_ChatSessions_UserId");
         });
 
         // -----------------------------------------------------------------------
