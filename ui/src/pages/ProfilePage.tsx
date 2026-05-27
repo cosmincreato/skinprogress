@@ -50,12 +50,7 @@ const DAILY_HABITS: { key: HabitKey; label: string }[] = [
   { key: "spf", label: "SPF" },
 ];
 
-const _getLocalDateKey = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+
 
 // Get today's date key using UTC (consistent with database storage)
 const getTodayDateKeyUTC = (): string => {
@@ -90,24 +85,7 @@ const createEmptyHabitRecord = (): HabitDayRecord => ({
   spf: false,
 });
 
-const createCompletedHabitRecord = (): HabitDayRecord => ({
-  cleaning: true,
-  hydration: true,
-  spf: true,
-});
 
-const _createTwoDayHabitSeed = (): Record<string, HabitDayRecord> => {
-  const yesterday = new Date();
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
-
-  return {
-    [getUTCDateKey(yesterday)]: createCompletedHabitRecord(),
-    [getUTCDateKey(twoDaysAgo)]: createCompletedHabitRecord(),
-  };
-};
 
 const isHabitDayComplete = (record: HabitDayRecord) =>
   record.cleaning && record.hydration && record.spf;
@@ -132,6 +110,11 @@ const calculateHabitStreak = (entries: Record<string, HabitDayRecord>) => {
 };
 
 const getUserIdFromToken = () => {
+  // First check if userId is stored directly (from local email login)
+  const storedUserId = localStorage.getItem("userId");
+  if (storedUserId) return storedUserId;
+
+  // Otherwise try to extract from JWT (from OAuth login)
   const token = localStorage.getItem("jwt");
   if (!token) return null;
   try {
@@ -220,7 +203,7 @@ const ProfilePage = () => {
     Record<string, HabitDayRecord>
   >({});
   const [userBadges, setUserBadges] = useState<any[]>([]);
-  const [habitsLoading, setHabitsLoading] = useState(false);
+  const [_, setHabitsLoading] = useState(false);
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
   const navigate = useNavigate();
   const currentUserId = getUserIdFromToken();
@@ -349,7 +332,8 @@ const ProfilePage = () => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem("jwt");
+      // Try both accessToken (local email login) and jwt (OAuth login)
+      const token = localStorage.getItem("accessToken") || localStorage.getItem("jwt");
       if (!token) return;
 
       try {
@@ -507,7 +491,7 @@ const ProfilePage = () => {
     setUploadError(null);
     setUploading(true);
 
-    const token = localStorage.getItem("jwt");
+    const token = localStorage.getItem("accessToken") || localStorage.getItem("jwt");
     const formData = new FormData();
     const blob = await fetch(selfie).then((res) => res.blob());
     formData.append("file", blob, `${nextRequiredAngle}-selfie.jpg`);

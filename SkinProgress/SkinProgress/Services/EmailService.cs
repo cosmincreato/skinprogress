@@ -86,9 +86,9 @@ public class EmailService : IEmailService
                 <h2>Reset Your Password</h2>
                 <p>We received a request to reset your password. Use this code to create a new password:</p>
                 <div style='background-color: #f3f4f6; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;'>
-                    <p style='font-size: 24px; font-weight: bold; color: #0ea5e9; letter-spacing: 2px; margin: 0;'>{resetToken.ToUpper().Substring(0, Math.Min(6, resetToken.Length))}</p>
+                    <p style='font-size: 24px; font-weight: bold; color: #0ea5e9; letter-spacing: 4px; margin: 0; font-family: monospace;'>{resetToken}</p>
                 </div>
-                <p style='text-align: center; color: #666;'>This code expires in {AuthConstants.PasswordResetTokenExpirationHours} hours.</p>
+                <p style='text-align: center; color: #666; font-size: 12px;'>This code expires in {AuthConstants.PasswordResetTokenExpirationHours} hours.</p>
                 <p>If you didn't request this reset, please ignore this email. Your account remains secure.</p>
                 <hr/>
                 <p><small>© {DateTime.Now.Year} SkinProgress. All rights reserved.</small></p>

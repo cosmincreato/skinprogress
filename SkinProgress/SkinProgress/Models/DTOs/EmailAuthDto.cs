@@ -44,3 +44,27 @@ public record ConfirmEmailRequestDto(
     [Required(ErrorMessage = "Confirmation token is required")]
     string Token
 );
+
+/// <summary>
+/// Request DTO for password reset token generation.
+/// </summary>
+public record PasswordResetRequestDto(
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email format")]
+    string Email
+);
+
+/// <summary>
+/// Request DTO for password reset.
+/// </summary>
+public record ResetPasswordRequestDto(
+    [Required(ErrorMessage = "Password reset token is required")]
+    string Token,
+
+    [Required(ErrorMessage = "New password is required")]
+    [MinLength(8, ErrorMessage = "Password must be at least 8 characters long")]
+    string NewPassword,
+
+    [Required(ErrorMessage = "Password confirmation is required")]
+    string ConfirmPassword
+);

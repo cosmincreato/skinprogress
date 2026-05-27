@@ -314,7 +314,7 @@ export async function comparePeriods(
  */
 function getAuthToken(): string {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("jwt") || "";
+    return localStorage.getItem("accessToken") || localStorage.getItem("jwt") || "";
   }
   return "";
 }

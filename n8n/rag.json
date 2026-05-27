@@ -1,0 +1,817 @@
+{
+  "name": "Aegis Workflow Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "",
+        "options": {
+          "subtitle": "Aegis Workflow Agent",
+          "title": "Aegis Workflow Agent",
+          "responseMode": "streaming"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1792,
+        -480
+      ],
+      "id": "2107e543-9418-41b7-9eb9-caa9cd7a5d4f",
+      "name": "When chat message received",
+      "webhookId": "23a6bc03-c48c-4ac5-a90a-f779b2793037"
+    },
+    {
+      "parameters": {
+        "formTitle": "Add documents to database",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Document (PDF expected)",
+              "fieldType": "file",
+              "fieldName": "document",
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Vision Mode (for diagrams, images)",
+              "fieldType": "radio",
+              "fieldName": "vision",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "enabled"
+                  },
+                  {
+                    "option": "disabled"
+                  }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -4336,
+        -240
+      ],
+      "id": "b0d1b773-cbbc-499d-b57b-c5247ca06740",
+      "name": "On form submission",
+      "webhookId": "c4e66419-1273-4222-a47c-a858332c12da"
+    },
+    {
+      "parameters": {
+        "content": "# AI Agent  for Aegis Workflow\n\n#### Tools:\n- Retrieve documents from Qdrant\n#### Models (yet to experiment with better models, could definetly be upgraded)\n- **Chat Model**:  gpt5-nano\n- **Embedding Model**:  multilingual-e5-base\n- **Rethinker Model**:  qllama/bge-reranker-v2-m3",
+        "height": 256,
+        "width": 800
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4848,
+        -1248
+      ],
+      "id": "dae62494-102a-45b8-a50f-210b822e62c8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### Form Submission\n\nUpload documents to the vector database as knowledge base (duplicates rejected)\nToggle vision on if you want to uploads images from a document (LLM will create a description for them and embed it)\n",
+        "height": 176,
+        "width": 400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4816,
+        -272
+      ],
+      "id": "16868fb0-4a4d-4716-b5eb-2a9204f3139f",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "### Send Chat Message\n\nAsk a question and receive an answer based on the knowledge base",
+        "height": 112,
+        "width": 304
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        -480
+      ],
+      "id": "73c16d99-8a1d-4e55-8ef5-bc1d148fe47b",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "##### **Backlog**\n\n- add sharepoint connector (needs azure configuration)\n- add sharepoint link metadata to the ingested files so the ai can link them\n- mechanism for different authorization on documents based on sharepoint group\n- maybe add different tools with redmine / sharepoint connectors",
+        "height": 240,
+        "width": 480
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3984,
+        -1232
+      ],
+      "id": "f1f9e04e-935a-4fb0-9dfd-44893e1b5006",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=# Rol\nEști un membru senior entuziast al echipei Aegis Core Tech din România. Tonul tău este profesional, prietenos și util. Acționezi ca un partener de cunoștințe interne pentru colegii tăi.\n\n# Instrucțiuni de Bază\n- **Regulă de Căutare CRITICĂ:** Ești un asistent bazat exclusiv pe recuperarea datelor. TREBUIE să folosești întotdeauna `qdrant_tool` înainte de a răspunde. Nu spune niciodată „nu știu” și nu face trimitere la SharePoint până nu ai efectuat cel puțin două căutări diferite folosind cuvinte cheie variate.\n- **Suport Multilingv:** Detectează limba întrebării utilizatorului (engleză sau română) și răspunde în **aceeași limbă**. Asigură o gramatică perfectă și integritatea caracterelor în ambele limbi.\n- **Mapare Acronime (Specific Aegis):** În cadrul acestei companii, „ROI” se referă ÎNTOTDEAUNA la „Regulamentul de Ordine Interioară”. Nu interpreta niciodată ROI ca „Return on Investment”.\n- **Fundamentare (Grounding):** Răspunde la întrebări FOLOSIND DOAR contextul furnizat. Dacă un termen sau un fapt nu se află în context, nu folosi cunoștințele tale generale interne pentru a-l defini.\n- **Independență:** Fiecare întrebare este independentă. Re-evaluează tot contextul disponibil (ROI vs. Organigramă) pentru fiecare interogare nouă.\n\n# Formatare și Stil\n- **FĂRĂ ANTETE:** Nu include în răspunsul final titluri între paranteze pătrate precum „[Direct Answer]” sau „[Friendly Closing]”. Scrie doar textul conversațional.\n- **INTEGRITATEA CARACTERELOR:** Asigură-te că tot textul folosește caractere standard latine/românești. Nu amesteca caractere din alte alfabete (arab, chirilic, chinez, thailandez etc.).\n- **FĂRĂ BLOCURI MATEMATICE:** Nu folosi niciodată LaTeX, semne de dolar duble ($$) sau blocuri de cod pentru numere sau formule. Scrie totul ca text simplu, lizibil.\n- **Fără Introduceri:** Începe direct cu răspunsul. Nu spune „Ok, lasă-mă să verific...” sau „Pe baza documentelor furnizate...”.\n- **Tone:** Fii concis, dar cald. 🚀 Folosește ocazional emoji-uri (👨‍💼, ✅, 📂) pentru a rămâne abordabil.\n\n# Citări\n- Menționează documentul sursă în mod organic (ex: „Conform Regulamentului de Ordine Interioară (ROI)...” sau „Potrivit Organigramei...”). Folosește metadatele `fileName` pentru a identifica numele documentului.\n\n# Format Răspuns\n[Textul răspunsului tău în limba utilizatorului, începând direct cu informațiile găsite.]\n[Încheierea prietenoasă sau o întrebare de follow-up în aceeași limbă.]",
+          "returnIntermediateSteps": false,
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1520,
+        -480
+      ],
+      "id": "c3e4f305-1416-497b-8a13-dba11206e731",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -1456,
+        -224
+      ],
+      "id": "29c5ae58-42fb-4753-8087-1a0d65784f43",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "fileName",
+                "value": "={{ $json.document[0].filename }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -2864,
+        -112
+      ],
+      "id": "6188e6ab-22a7-4e18-89f6-d4301566d9fb",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "model": "bge-m3:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -3104,
+        -112
+      ],
+      "id": "ccdf6955-97f1-455d-ae2b-2432f7a85d44",
+      "name": "Embeddings Ollama1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "h2SgqrSDLI2rnQUH",
+          "name": "Ollama Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "point",
+        "operation": "countPoints",
+        "collectionName": {
+          "__rl": true,
+          "value": "bge-m3",
+          "mode": "list",
+          "cachedResultName": "bge-m3"
+        },
+        "filter": "={\n  \"must\": [\n    {\n      \"key\": \"metadata.fileName\",\n      \"match\": {\n        \"value\": \"{{ $json.document[0].filename }}\"\n      }\n    }\n  ]\n}",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-qdrant.qdrant",
+      "typeVersion": 1,
+      "position": [
+        -3840,
+        -128
+      ],
+      "id": "901316ea-19b1-44fb-97af-946d216e36fc",
+      "name": "Count Points",
+      "credentials": {
+        "qdrantRestApi": {
+          "id": "AU2zabZK6w1Kl1TY",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -3440,
+        144
+      ],
+      "id": "1f3b88a6-27fa-4da4-9f84-37ba62fade13",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3c10dff7-dc67-4e72-a462-80f6aea36a24",
+              "leftValue": "={{ $json.vision }}",
+              "rightValue": "enabled",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4112,
+        -304
+      ],
+      "id": "d24d30c4-5057-4e24-b91b-20a782118b94",
+      "name": "If vision mode is enabeld"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f1492ee9-8423-48fb-a4b5-fb662384eedf",
+              "leftValue": "={{ $json.result.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3664,
+        -128
+      ],
+      "id": "32a32c62-06ba-4540-9c40-c22429a077bd",
+      "name": "If no duplicates in DB"
+    },
+    {
+      "parameters": {
+        "operation": "boxes",
+        "inputDataFieldName": "document",
+        "options": {
+          "psm": "SPARSE_TEXT",
+          "resolution": {
+            "resolution": {
+              "forceResolution": true
+            }
+          },
+          "minConfidence": 70
+        }
+      },
+      "type": "n8n-nodes-tesseractjs.tesseractNode",
+      "typeVersion": 1,
+      "position": [
+        -3888,
+        -400
+      ],
+      "id": "9d931df7-bb1c-4f71-bc76-32fbeb1f311d",
+      "name": "Tesseract"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3680,
+        -400
+      ],
+      "id": "1d68994b-fdcd-424e-b5c4-33a5d7f62a8c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "value": "llama3.2-vision:latest",
+          "mode": "list",
+          "cachedResultName": "llama3.2-vision:latest"
+        },
+        "text": "Describe the contents of the image as technical as possible (step by step instructions, workflow, etc.), avoid just describing the image on a surface level \nExample: For an instructions manual, describe the steps instead of saying that this is a manual",
+        "binaryPropertyName": "ocr",
+        "options": {
+          "system": ""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        -3376,
+        -400
+      ],
+      "id": "2f290f5e-bf20-42a2-8cbe-8fa6cf883c65",
+      "name": "Analyze image",
+      "credentials": {
+        "ollamaApi": {
+          "id": "h2SgqrSDLI2rnQUH",
+          "name": "Ollama Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -3376,
+        -528
+      ],
+      "id": "bc377168-bcb4-4e57-bcce-a75d2cc9cf93",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "model": "bge-m3:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        -464
+      ],
+      "id": "f7da0c65-5dd6-49f6-afef-d001e53fbe0a",
+      "name": "Embeddings Ollama2",
+      "credentials": {
+        "ollamaApi": {
+          "id": "h2SgqrSDLI2rnQUH",
+          "name": "Ollama Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -2880,
+        -464
+      ],
+      "id": "cafc0c76-b092-45e5-a81c-2728bc1f3cc7",
+      "name": "Default Data Loader1"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "bge-m3",
+          "mode": "list",
+          "cachedResultName": "bge-m3"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        -3040,
+        -640
+      ],
+      "id": "914a022b-f36d-49fd-a3c3-5e7ebe54b3a7",
+      "name": "Qdrant Upload Vectors (Images)",
+      "credentials": {
+        "qdrantApi": {
+          "id": "zJl7Q0pOCKUoEzaV",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "bge-m3",
+          "mode": "list",
+          "cachedResultName": "bge-m3"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        -3040,
+        -320
+      ],
+      "id": "f3de7d22-4726-4d91-bca8-53521b22abfb",
+      "name": "Qdrant Upload Vectors (PDF content)",
+      "credentials": {
+        "qdrantApi": {
+          "id": "zJl7Q0pOCKUoEzaV",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "MANDATORY: Use this tool to search for ALL internal company policies, Aegis Core Tech regulations (ROI), and team structure. If the user asks about rules or personnel, you MUST call this tool first.",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "bge-m3",
+          "mode": "list",
+          "cachedResultName": "bge-m3"
+        },
+        "topK": 20,
+        "useReranker": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        -1216,
+        -368
+      ],
+      "id": "ada14949-59a2-4ff4-bbd9-53c02e1f569f",
+      "name": "Qdrant Vector Store",
+      "credentials": {
+        "qdrantApi": {
+          "id": "zJl7Q0pOCKUoEzaV",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "bge-m3:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        -224
+      ],
+      "id": "24c8dcd2-3910-4e1c-9213-a6ca18f49604",
+      "name": "Embeddings Ollama",
+      "credentials": {
+        "ollamaApi": {
+          "id": "h2SgqrSDLI2rnQUH",
+          "name": "Ollama Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "qllama/bge-reranker-large:latest",
+        "topK": 5,
+        "additionalOptions": {}
+      },
+      "type": "n8n-nodes-ollama-reranker.ollamaReranker",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        -224
+      ],
+      "id": "e908451a-9019-44b7-b8ef-8d835580d06f",
+      "name": "Ollama Reranker",
+      "credentials": {
+        "ollamaApi": {
+          "id": "h2SgqrSDLI2rnQUH",
+          "name": "Ollama Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "gpt-5-nano"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1664,
+        -224
+      ],
+      "id": "9ddd998e-382b-451f-ad1a-93b5825fe60c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "d8I90dVmwqtZidoI",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "If vision mode is enabeld",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (PDF content)",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (PDF content)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Points": {
+      "main": [
+        [
+          {
+            "node": "If no duplicates in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (PDF content)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If vision mode is enabeld": {
+      "main": [
+        [
+          {
+            "node": "Tesseract",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Count Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If no duplicates in DB": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Tesseract": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (Images)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (Images)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Upload Vectors (Images)",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Upload Vectors (PDF content)": {
+      "main": [
+        []
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Reranker": {
+      "ai_reranker": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_reranker",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "24e1ac4c-52fe-4d63-b210-377232ef983a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "01ff15910852ca440c105b50907d8e12aa1b45dc46c27dd48ca92ab0885f25c2"
+  },
+  "id": "iDMuF7wTzMsjfg6F",
+  "tags": []
+}

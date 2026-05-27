@@ -14,7 +14,9 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly IRegistrationService _registrationService;
     private readonly IEmailConfirmationService _emailConfirmationService;
+    private readonly IPasswordResetService _passwordResetService;
     private readonly ILoginService _loginService;
+    private readonly IPasswordHashingService _passwordHashingService;
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthController> _logger;
 
@@ -22,14 +24,18 @@ public class AuthController : ControllerBase
         IAuthService authService,
         IRegistrationService registrationService,
         IEmailConfirmationService emailConfirmationService,
+        IPasswordResetService passwordResetService,
         ILoginService loginService,
+        IPasswordHashingService passwordHashingService,
         IEmailService emailService,
         ILogger<AuthController> logger)
     {
         _authService = authService;
         _registrationService = registrationService;
         _emailConfirmationService = emailConfirmationService;
+        _passwordResetService = passwordResetService;
         _loginService = loginService;
+        _passwordHashingService = passwordHashingService;
         _emailService = emailService;
         _logger = logger;
     }
@@ -214,6 +220,100 @@ public class AuthController : ControllerBase
         {
             _logger.LogError($"Login error: {ex.Message}");
             return StatusCode(500, new { message = "An error occurred during login." });
+        }
+    }
+
+    /// <summary>
+    /// Request password reset token.
+    /// Sends password reset link to user's email.
+    /// Does not reveal whether email exists for security.
+    /// </summary>
+    /// <param name="request">User email address</param>
+    /// <returns>Confirmation message</returns>
+    [HttpPost("email/forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] PasswordResetRequestDto request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // Generate password reset token (throws if email not found or OAuth-only)
+            var resetToken = await _passwordResetService.GeneratePasswordResetTokenAsync(request.Email);
+
+            // Send password reset email
+            try
+            {
+                await _emailService.SendPasswordResetAsync(request.Email, resetToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to send password reset email to {request.Email}: {ex.Message}");
+                // Don't fail the request - user should still be able to use the token
+            }
+
+            // Always return success message for security (don't reveal if email exists)
+            return Ok(new
+            {
+                message = $"If an account exists with {request.Email}, you will receive a password reset email."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Still return 200 OK to not reveal email existence
+            _logger.LogWarning($"Password reset request: {ex.Message}");
+            return Ok(new
+            {
+                message = $"If an account exists with {request.Email}, you will receive a password reset email."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Password reset request error: {ex.Message}");
+            return StatusCode(500, new { message = "An error occurred. Please try again later." });
+        }
+    }
+
+    /// <summary>
+    /// Reset user password using reset token.
+    /// Validates token, updates password, and marks token as used.
+    /// </summary>
+    /// <param name="request">Reset token and new password</param>
+    /// <returns>Success message</returns>
+    [HttpPost("email/reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // Validate passwords match
+            if (request.NewPassword != request.ConfirmPassword)
+            {
+                return BadRequest(new { message = "Passwords do not match." });
+            }
+
+            // Reset password
+            await _passwordResetService.ResetPasswordAsync(
+                request.Token,
+                request.NewPassword,
+                _passwordHashingService);
+
+            return Ok(new { message = "Password reset successful. You can now login with your new password." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Password reset error: {ex.Message}");
+            return StatusCode(500, new { message = "An error occurred during password reset." });
         }
     }
 }

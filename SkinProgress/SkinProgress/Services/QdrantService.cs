@@ -15,6 +15,8 @@ public class QdrantService : IQdrantService
     private readonly ILogger<QdrantService> _logger;
     private readonly string _qdrantUrl;
     private readonly string _collectionName = "skinprogress_analyses";
+    private bool _isInitialized = false;
+    private readonly SemaphoreSlim _initializationLock = new SemaphoreSlim(1, 1);
 
     public QdrantService(HttpClient httpClient, ILogger<QdrantService> logger, IConfiguration config)
     {
@@ -25,7 +27,30 @@ public class QdrantService : IQdrantService
         var port = config["Qdrant:Port"] ?? "6333";
         _qdrantUrl = $"http://{host}:{port}";
 
-        InitializeCollectionAsync().GetAwaiter().GetResult();
+        // Start initialization in background without blocking startup
+        _ = Task.Run(() => EnsureCollectionInitializedAsync());
+    }
+
+    /// <summary>
+    /// Ensures Qdrant collection is initialized. Lazy initialization on first use.
+    /// </summary>
+    private async Task EnsureCollectionInitializedAsync()
+    {
+        if (_isInitialized) return;
+
+        await _initializationLock.WaitAsync();
+        try
+        {
+            if (_isInitialized) return;
+
+            _logger.LogInformation("Initializing Qdrant collection: {CollectionName}", _collectionName);
+            await InitializeCollectionAsync();
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
     }
 
     /// <summary>
@@ -33,46 +58,70 @@ public class QdrantService : IQdrantService
     /// </summary>
     private async Task InitializeCollectionAsync()
     {
-        try
+        int retries = 3;
+        while (retries > 0)
         {
-            // Check if collection exists
-            var checkUrl = $"{_qdrantUrl}/collections/{_collectionName}";
-            var response = await _httpClient.GetAsync(checkUrl);
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                _logger.LogInformation("Creating Qdrant collection: {CollectionName}", _collectionName);
+                // Check if collection exists
+                var checkUrl = $"{_qdrantUrl}/collections/{_collectionName}";
+                var response = await _httpClient.GetAsync(checkUrl);
 
-                // Create collection with vector size 8 (7 zones + 1 aggregated score)
-                var createRequest = new
+                if (!response.IsSuccessStatusCode)
                 {
-                    vectors = new
+                    _logger.LogInformation("Creating Qdrant collection: {CollectionName}", _collectionName);
+
+                    // Create collection with vector size 8 (7 zones + 1 aggregated score)
+                    var createRequest = new
                     {
-                        size = 8,
-                        distance = "Cosine"
-                    }
-                };
+                        vectors = new
+                        {
+                            size = 8,
+                            distance = "Cosine"
+                        }
+                    };
 
-                var createResponse = await _httpClient.PutAsJsonAsync(checkUrl, createRequest);
-                if (!createResponse.IsSuccessStatusCode)
-                {
-                    var content = await createResponse.Content.ReadAsStringAsync();
-                    _logger.LogError("Failed to create Qdrant collection: {Content}", content);
+                    var createResponse = await _httpClient.PutAsJsonAsync(checkUrl, createRequest);
+                    if (!createResponse.IsSuccessStatusCode)
+                    {
+                        var content = await createResponse.Content.ReadAsStringAsync();
+                        _logger.LogError("Failed to create Qdrant collection: {Content}", content);
+                        retries--;
+                        if (retries > 0)
+                        {
+                            await Task.Delay(2000); // Wait 2 seconds before retry
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Qdrant collection created successfully");
+                        return;
+                    }
                 }
                 else
                 {
-                    _logger.LogInformation("Qdrant collection created successfully");
+                    _logger.LogInformation("Qdrant collection already exists");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing Qdrant collection (retries left: {Retries})", retries);
+                retries--;
+                if (retries > 0)
+                {
+                    await Task.Delay(2000); // Wait 2 seconds before retry
                 }
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error initializing Qdrant collection");
-        }
+
+        _logger.LogWarning("Failed to initialize Qdrant collection after 3 retries. Service will attempt on-demand.");
     }
 
     public async Task<string> StoreAnalysisAsync(string userId, AnalysisResult analysisResult)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             // Generate vector from analysis scores (normalized 0-1)
@@ -131,6 +180,7 @@ public class QdrantService : IQdrantService
 
     public async Task<List<SimilarAnalysisDto>> SearchSimilarAnalysesAsync(string userId, float[] queryVector, int limit = 5)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             var searchRequest = new
@@ -198,6 +248,7 @@ public class QdrantService : IQdrantService
 
     public async Task StoreUserContextAsync(string userId, Dictionary<string, string> metadata)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             var contextVector = new float[8];
@@ -244,6 +295,7 @@ public class QdrantService : IQdrantService
 
     public async Task<List<RecommendationDto>> GenerateRecommendationsAsync(string userId, AnalysisResult currentAnalysis)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             var recommendations = new List<RecommendationDto>();
@@ -346,6 +398,7 @@ public class QdrantService : IQdrantService
 
     public async Task<List<AnalysisVectorDto>> GetUserAnalysisHistoryAsync(string userId)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             var scrollRequest = new
@@ -409,6 +462,7 @@ public class QdrantService : IQdrantService
 
     public async Task DeleteUserDataAsync(string userId)
     {
+        await EnsureCollectionInitializedAsync();
         try
         {
             var deleteRequest = new

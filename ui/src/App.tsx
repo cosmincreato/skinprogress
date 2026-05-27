@@ -11,6 +11,9 @@ import EvolutionPage from "./pages/EvolutionPage.tsx";
 import EmailRegister from "./components/auth/EmailRegister.tsx";
 import EmailLogin from "./components/auth/EmailLogin.tsx";
 import ConfirmEmail from "./components/auth/ConfirmEmail.tsx";
+import ForgotPassword from "./components/auth/ForgotPassword.tsx";
+import ResetPassword from "./components/auth/ResetPassword.tsx";
+import Layout from "./components/Layout.tsx";
 import { isAuthenticated, getUserId } from "./services/authService.ts";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -30,13 +33,17 @@ function App() {
         <Route path="/register" element={<EmailRegister />} />
         <Route path="/login" element={<EmailLogin />} />
         <Route path="/confirm-email" element={<ConfirmEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Protected Routes */}
         <Route
           path="/users/:userId"
           element={
             <ProtectedRoute>
-              <ProfilePage />
+              <Layout>
+                <ProfilePage />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -44,7 +51,9 @@ function App() {
           path="/users/:userId/gallery"
           element={
             <ProtectedRoute>
-              <GalleryPage />
+              <Layout>
+                <GalleryPage />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -52,7 +61,9 @@ function App() {
           path="/users/:userId/evolution"
           element={
             <ProtectedRoute>
-              <EvolutionPage />
+              <Layout>
+                <EvolutionPage />
+              </Layout>
             </ProtectedRoute>
           }
         />

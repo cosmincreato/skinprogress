@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import {
@@ -19,7 +19,27 @@ export function EmailLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutTimeRemaining, setLockoutTimeRemaining] = useState<number | null>(null);
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+  // Lockout timer effect
+  useEffect(() => {
+    if (!isLockedOut || lockoutTimeRemaining === null) return;
+
+    if (lockoutTimeRemaining <= 0) {
+      setIsLockedOut(false);
+      setLockoutTimeRemaining(null);
+      setError("");
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setLockoutTimeRemaining((prev) => (prev === null ? null : prev - 1));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [isLockedOut, lockoutTimeRemaining]);
 
   const handleGoogleSuccess = async (credential: string) => {
     setError("");
@@ -100,15 +120,21 @@ export function EmailLogin() {
         password,
       });
 
-      // Redirect to dashboard on successful login
-      navigate("/dashboard");
+      // Get userId from storage and redirect to profile page
+      const userId = getUserId();
+      if (userId) {
+        navigate(`/users/${userId}`);
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
       setError(errorMessage);
 
-      // Check if error is about rate limiting
+      // Check if error is about rate limiting and set lockout state
       if (errorMessage.includes("temporarily locked")) {
-        // Show lockout warning
+        setIsLockedOut(true);
+        setLockoutTimeRemaining(15 * 60); // 15 minutes in seconds
       }
     } finally {
       setIsLoading(false);
@@ -139,7 +165,7 @@ export function EmailLogin() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
+              disabled={isLoading || isLockedOut}
             />
           </div>
 
@@ -154,11 +180,7 @@ export function EmailLogin() {
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setError(
-                    "Password reset is not yet available. Please contact support.",
-                  );
-                }}
+                onClick={() => navigate("/forgot-password")}
                 className="text-sm text-purple-300 hover:text-purple-200"
               >
                 Forgot password?
@@ -171,14 +193,21 @@ export function EmailLogin() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
+              disabled={isLoading || isLockedOut}
             />
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-              <p className="text-sm text-red-300">{error}</p>
+            <div className={`rounded-lg p-3 ${isLockedOut ? "bg-yellow-500/10 border border-yellow-500/30" : "bg-red-500/10 border border-red-500/30"}`}>
+              <p className={`text-sm ${isLockedOut ? "text-yellow-300" : "text-red-300"}`}>
+                {error}
+              </p>
+              {isLockedOut && lockoutTimeRemaining !== null && (
+                <p className="text-xs text-yellow-300/80 mt-2">
+                  Try again in {Math.floor(lockoutTimeRemaining / 60)}:{String(lockoutTimeRemaining % 60).padStart(2, "0")}
+                </p>
+              )}
               {error.includes("not confirmed") && (
                 <button
                   type="button"
@@ -194,10 +223,10 @@ export function EmailLogin() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || isLockedOut}
             className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
           >
-            {isLoading ? "Logging in..." : "Login"}
+            {isLoading ? "Logging in..." : isLockedOut ? "Account Locked" : "Login"}
           </button>
         </form>
 
