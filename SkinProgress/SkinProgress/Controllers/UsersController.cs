@@ -213,26 +213,23 @@ public class UsersController : ControllerBase
         var todaysSelfieCapture = await _context.SelfieCaptures
             .FirstOrDefaultAsync(s => s.UserId == userId && s.CaptureDate == today && s.DeletedAt == null);
 
+        // Track if we're replacing an existing photo for this angle
+        Guid? oldPhotoIdToDelete = null;
+
         if (todaysSelfieCapture != null)
         {
-            // Check if this angle was already uploaded
+            // Check if this angle was already uploaded - if so, we'll replace it
             if (normalizedAngle == "front" && todaysSelfieCapture.FrontPhotoId.HasValue)
             {
-                return Conflict(new { message = $"You already uploaded the front selfie for today." });
+                oldPhotoIdToDelete = todaysSelfieCapture.FrontPhotoId;
             }
-            if (normalizedAngle == "left" && todaysSelfieCapture.LeftPhotoId.HasValue)
+            else if (normalizedAngle == "left" && todaysSelfieCapture.LeftPhotoId.HasValue)
             {
-                return Conflict(new { message = $"You already uploaded the left selfie for today." });
+                oldPhotoIdToDelete = todaysSelfieCapture.LeftPhotoId;
             }
-            if (normalizedAngle == "right" && todaysSelfieCapture.RightPhotoId.HasValue)
+            else if (normalizedAngle == "right" && todaysSelfieCapture.RightPhotoId.HasValue)
             {
-                return Conflict(new { message = $"You already uploaded the right selfie for today." });
-            }
-
-            // Check if already complete
-            if (todaysSelfieCapture.FrontPhotoId.HasValue && todaysSelfieCapture.LeftPhotoId.HasValue && todaysSelfieCapture.RightPhotoId.HasValue)
-            {
-                return Conflict(new { message = "You already completed your 3 selfies for today." });
+                oldPhotoIdToDelete = todaysSelfieCapture.RightPhotoId;
             }
         }
 
@@ -255,6 +252,42 @@ public class UsersController : ControllerBase
         }
 
         var fileUrl = GetFullUrl($"/selfies/{userId}/{fileName}");
+
+        // If replacing an existing photo for this angle, delete the old one
+        if (oldPhotoIdToDelete.HasValue)
+        {
+            var oldPhoto = await _context.Photos.FirstOrDefaultAsync(p => p.PhotoId == oldPhotoIdToDelete.Value);
+            if (oldPhoto != null)
+            {
+                // Delete the old file from disk
+                try
+                {
+                    var oldFilePath = Path.Combine(webRootPath, oldPhoto.FilePath.TrimStart('/'));
+                    if (System.IO.File.Exists(oldFilePath))
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error deleting old photo file: {ex.Message}");
+                }
+
+                // Delete metadata
+                if (oldPhoto.MetadataId != Guid.Empty)
+                {
+                    var oldMetadata = await _context.PhotoMetadatas.FirstOrDefaultAsync(m => m.MetadataId == oldPhoto.MetadataId);
+                    if (oldMetadata != null)
+                    {
+                        _context.PhotoMetadatas.Remove(oldMetadata);
+                    }
+                }
+
+                // Delete the old photo record
+                _context.Photos.Remove(oldPhoto);
+                await _context.SaveChangesAsync();
+            }
+        }
 
         // Create a Photo record in the database
         var photoId = Guid.NewGuid();
@@ -824,6 +857,16 @@ public class UsersController : ControllerBase
             try
             {
                 await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
+
+                // Store analysis scores as activity event in Qdrant
+                var scoreEventData = new Dictionary<string, string>
+                {
+                    { "acne_score", (analysisResult.AcneSeverity?.ToString() ?? "0") },
+                    { "redness_score", (analysisResult.RednessSeverity?.ToString() ?? "0") },
+                    { "under_eye_bags_score", (analysisResult.UnderEyeBagsSeverity?.ToString() ?? "0") },
+                    { "overall_score", (((analysisResult.AcneSeverity ?? 0) + (analysisResult.RednessSeverity ?? 0) + (analysisResult.UnderEyeBagsSeverity ?? 0)) / 3.0).ToString() }
+                };
+                await _qdrantService.StoreUserActivityAsync(userId.ToString(), "score_update", scoreEventData);
                 
                 // Generate personalized recommendations based on analysis history
                 var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);

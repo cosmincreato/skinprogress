@@ -54,6 +54,14 @@ public interface IQdrantService
     /// </summary>
     /// <param name="userId">User unique identifier</param>
     Task DeleteUserDataAsync(string userId);
+
+    /// <summary>
+    /// Stores user activity events (habit completions, photos, scores) in Qdrant for pattern analysis.
+    /// </summary>
+    /// <param name="userId">User unique identifier</param>
+    /// <param name="eventType">Type of event: habit_completion, photo_upload, score_update</param>
+    /// <param name="eventData">Event metadata and values</param>
+    Task StoreUserActivityAsync(string userId, string eventType, Dictionary<string, string> eventData);
 }
 
 /// <summary>

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SkinProgress.Models.DTOs;
 using SkinProgress.Services;
+using SkinProgress.Services.Interfaces;
 
 namespace SkinProgress.Controllers;
 
@@ -16,11 +17,13 @@ namespace SkinProgress.Controllers;
 public class PhotoController : ControllerBase
 {
     private readonly PhotoService _photoService;
+    private readonly IQdrantService _qdrantService;
     private readonly ILogger<PhotoController> _logger;
 
-    public PhotoController(PhotoService photoService, ILogger<PhotoController> logger)
+    public PhotoController(PhotoService photoService, IQdrantService qdrantService, ILogger<PhotoController> logger)
     {
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
+        _qdrantService = qdrantService ?? throw new ArgumentNullException(nameof(qdrantService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -46,6 +49,24 @@ public class PhotoController : ControllerBase
             var result = await _photoService.UploadPhotoAsync(userId, request);
 
             _logger.LogInformation("Photo uploaded: {photoId}", result.PhotoId);
+
+            // Store photo upload activity in Qdrant
+            try
+            {
+                var eventData = new Dictionary<string, string>
+                {
+                    { "photo_id", result.PhotoId.ToString() },
+                    { "view_type", result.ViewType ?? "unknown" }
+                };
+
+                await _qdrantService.StoreUserActivityAsync(userId.ToString(), "photo_upload", eventData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error storing photo upload in Qdrant: {Message}", ex.Message);
+                // Don't throw - Qdrant failure shouldn't block photo upload
+            }
+
             return Ok(result);
         }
         catch (ArgumentException ex)
