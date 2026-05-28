@@ -503,28 +503,6 @@ def _to_png_data_url(image: Image.Image) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
-def _get_condition_color(condition: str, severity: float) -> tuple[int, int, int]:
-    s = float(np.clip(severity, 0.0, 1.0))
-    if condition == "acne":
-        return (
-            int(np.clip(255 - s * 35, 0, 255)),
-            int(np.clip(200 - s * 180, 0, 255)),
-            int(np.clip(200 - s * 180, 0, 255)),
-        )
-    if condition == "redness":
-        return (
-            int(np.clip(255 - s * 25, 0, 255)),
-            int(np.clip(220 - s * 120, 0, 255)),
-            int(np.clip(180 - s * 180, 0, 255)),
-        )
-    # under_eye_bags
-    return (
-        int(np.clip(220 - s * 120, 0, 255)),
-        int(np.clip(200 - s * 200, 0, 255)),
-        int(np.clip(255 - s * 55, 0, 255)),
-    )
-
-
 def _get_severity_color(severity_score: float) -> tuple[int, int, int]:
     """
     Maps severity score (0-1) to RGB color:
@@ -959,6 +937,13 @@ def _build_composite_heatmap_overlay_and_metadata(
     and returns detection metadata for hover tooltips.
     Returns (data_url_or_None, detections_list).
     """
+    # Detection thresholds for overlay visibility and zone detection
+    REDNESS_OVERLAY_THRESHOLD = 0.12
+    REDNESS_DETECTION_THRESHOLD = 0.3
+    UNDEREYE_OVERLAY_THRESHOLD = 0.12
+    UNDEREYE_DETECTION_THRESHOLD = 0.3
+    ACNE_OVERLAY_THRESHOLD = 0.08
+
     w, h = image.size
     if w < 8 or h < 8:
         return None, []
@@ -973,7 +958,7 @@ def _build_composite_heatmap_overlay_and_metadata(
     # ── Layer 1: Redness ──
     try:
         redness_heat = _build_redness_heatmap(image)
-        r_mask = redness_heat > 0.12
+        r_mask = redness_heat > REDNESS_OVERLAY_THRESHOLD
         if r_mask.any():
             rc = np.zeros((h, w, 3), dtype=np.float32)
             rc[..., 0] = np.clip(255 - redness_heat * 25, 0, 255)
@@ -983,7 +968,7 @@ def _build_composite_heatmap_overlay_and_metadata(
             ra[~r_mask] = 0
             overlay_rgba[r_mask, :3] = rc[r_mask].astype(np.uint8)
             overlay_rgba[r_mask, 3] = ra[r_mask]
-            zone_mask = redness_heat > 0.3
+            zone_mask = redness_heat > REDNESS_DETECTION_THRESHOLD
             if zone_mask.any():
                 ys, xs = np.where(zone_mask)
                 detections.append({
@@ -998,7 +983,7 @@ def _build_composite_heatmap_overlay_and_metadata(
     # ── Layer 2: Under-eye bags ──
     try:
         undereye_heat = _build_under_eye_heatmap(image)
-        u_mask = undereye_heat > 0.12
+        u_mask = undereye_heat > UNDEREYE_OVERLAY_THRESHOLD
         if u_mask.any():
             uc = np.zeros((h, w, 3), dtype=np.float32)
             uc[..., 0] = np.clip(220 - undereye_heat * 120, 0, 255)
@@ -1008,7 +993,7 @@ def _build_composite_heatmap_overlay_and_metadata(
             ua[~u_mask] = 0
             overlay_rgba[u_mask, :3] = uc[u_mask].astype(np.uint8)
             overlay_rgba[u_mask, 3] = ua[u_mask]
-            zone_mask = undereye_heat > 0.3
+            zone_mask = undereye_heat > UNDEREYE_DETECTION_THRESHOLD
             if zone_mask.any():
                 ys, xs = np.where(zone_mask)
                 detections.append({
@@ -1085,7 +1070,7 @@ def _build_composite_heatmap_overlay_and_metadata(
         if acne_heat.max() > 0:
             acne_heat /= acne_heat.max()
 
-        a_mask = acne_heat > 0.08
+        a_mask = acne_heat > ACNE_OVERLAY_THRESHOLD
         if a_mask.any():
             ac = np.zeros((h, w, 3), dtype=np.float32)
             ac[..., 0] = np.clip(255 - acne_heat * 35, 0, 255)
@@ -1099,6 +1084,7 @@ def _build_composite_heatmap_overlay_and_metadata(
         print(f"WARNING: acne layer failed: {e}", flush=True)
 
     if not (overlay_rgba[..., 3] > 0).any():
+        # No conditions detected above threshold; return original image (not None)
         return _to_png_data_url(image), detections
 
     overlay_img = Image.fromarray(overlay_rgba, mode="RGBA")
