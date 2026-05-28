@@ -110,20 +110,27 @@ def _get_acne_detector():
 def _get_face_mesh():
     global _face_mesh
     if _face_mesh is None:
-        _face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
+        try:
+            _face_mesh = mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5,
+            )
+        except AttributeError:
+            # mediapipe >= 0.10 dropped the solutions API on some builds
+            _face_mesh = None
     return _face_mesh
 
 
 def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
     """Returns (N,2) array of landmark pixel coords, or None."""
+    mesh = _get_face_mesh()
+    if mesh is None:
+        return None
     img_rgb = np.array(image)
-    res = _get_face_mesh().process(img_rgb)
+    res = mesh.process(img_rgb)
     if not res.multi_face_landmarks:
         return None
     lm = res.multi_face_landmarks[0].landmark
@@ -833,9 +840,22 @@ def _build_uniform_face_overlay(image: Image.Image) -> str | None:
 
 
 def _detect_face_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
+    # Try MediaPipe face mesh first — handles frontal and side-facing photos
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        iw, ih = image.size
+        x1 = int(np.clip(pts[:, 0].min(), 0, iw - 1))
+        y1 = int(np.clip(pts[:, 1].min(), 0, ih - 1))
+        x2 = int(np.clip(pts[:, 0].max(), 0, iw - 1))
+        y2 = int(np.clip(pts[:, 1].max(), 0, ih - 1))
+        fw, fh = x2 - x1, y2 - y1
+        if fw >= 20 and fh >= 20:
+            print(f"DEBUG: MediaPipe face bbox: x={x1}, y={y1}, w={fw}, h={fh}")
+            return x1, y1, fw, fh
+
+    # Fall back to Haar cascade for frontal faces
     image_rgb = np.array(image)
     image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml",
     )
@@ -845,10 +865,8 @@ def _detect_face_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
         minNeighbors=5,
         minSize=(48, 48),
     )
-
     if faces is None or len(faces) == 0:
         return None
-
     largest = max(faces, key=lambda item: item[2] * item[3])
     x, y, w, h = [int(value) for value in largest]
     return x, y, w, h
