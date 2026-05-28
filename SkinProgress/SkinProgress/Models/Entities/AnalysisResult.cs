@@ -161,6 +161,15 @@ namespace SkinProgress.Models.Entities
         /// <summary>URL to right-view heatmap image.</summary>
         public string? HeatmapRightUrl { get; set; }
 
+        /// <summary>JSON array of detection metadata for the front-angle heatmap.</summary>
+        public string? DetectionsFrontJson { get; set; }
+
+        /// <summary>JSON array of detection metadata for the left-angle heatmap.</summary>
+        public string? DetectionsLeftJson { get; set; }
+
+        /// <summary>JSON array of detection metadata for the right-angle heatmap.</summary>
+        public string? DetectionsRightJson { get; set; }
+
         /// <summary>URL to 3D model (glTF) for this capture.</summary>
         public string? Model3DUrl { get; set; }
 
