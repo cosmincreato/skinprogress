@@ -261,8 +261,6 @@ export function Face3DModel({ frontPhotoUrl, detections }: Props) {
     };
     loop();
 
-    const skinDark = new THREE.Color(0.25, 0.14, 0.10);
-
     // Procedural roughness texture — simulates pore microstructure
     const roughCanvas = document.createElement("canvas");
     roughCanvas.width = roughCanvas.height = 512;
@@ -310,6 +308,13 @@ export function Face3DModel({ frontPhotoUrl, detections }: Props) {
 
         const region = regionRef.current;
 
+        // Derive dark-side base from the median skin tone so the shadow half of
+        // the face stays warm instead of clashing as cold purple-grey.
+        const skinMidR = region ? region.skinR / 255 : 0.70;
+        const skinMidG = region ? region.skinG / 255 : 0.50;
+        const skinMidB = region ? region.skinB / 255 : 0.40;
+        const skinDark = new THREE.Color(skinMidR * 0.22, skinMidG * 0.22, skinMidB * 0.22);
+
         headGroup.traverse((child: THREE.Object3D) => {
           if (!(child instanceof THREE.Mesh)) return;
           child.updateMatrixWorld(true);
@@ -350,7 +355,7 @@ export function Face3DModel({ frontPhotoUrl, detections }: Props) {
             let r: number, g: number, b: number;
             const blend = Math.max(0, Math.min(1, (fnz + 0.05) / 0.35)) ** 1.5;
 
-            if (!region || fnz < -0.05) {
+            if (!region || fnz < -0.05 || normY < 0.30) {
               r = skinDark.r;
               g = skinDark.g;
               b = skinDark.b;
