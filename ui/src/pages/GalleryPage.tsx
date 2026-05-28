@@ -1260,6 +1260,7 @@ const GalleryPage = () => {
                             <Face3DModel
                               scores={analysisByDate[selectedDay.date].overall_scores}
                               frontPhotoUrl={getPhotoForAngle(selectedDay.photos, "front")?.url}
+                              detections={analysisByDate[selectedDay.date].per_angle?.front?.detections ?? []}
                             />
                           </div>
 

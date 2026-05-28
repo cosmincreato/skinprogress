@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { Detection } from "./HeatmapOverlay";
 
 const FACE_MODEL =
   "https://raw.githubusercontent.com/mrdoob/three.js/r168/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb";
@@ -44,9 +45,10 @@ interface FaceRegion {
 interface Props {
   scores: Record<string, number>;
   frontPhotoUrl?: string | null;
+  detections?: Detection[];
 }
 
-export function Face3DModel({ scores, frontPhotoUrl }: Props) {
+export function Face3DModel({ scores, frontPhotoUrl, detections: _detections }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
