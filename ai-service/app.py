@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image
-import mediapipe as mp
+
 from transformers import pipeline
 from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
@@ -58,6 +58,8 @@ CLIP_MODEL_ID = os.getenv("CLIP_MODEL_ID", "openai/clip-vit-base-patch32").strip
 ACNE_MODEL_ID = os.getenv("ACNE_MODEL_ID", "imfarzanansari/skintelligent-acne").strip()
 ACNE_DETECT_MODEL_REPO = os.getenv("ACNE_DETECT_MODEL_REPO", "Tinny-Robot/acne").strip()
 ACNE_DETECT_MODEL_FILE = os.getenv("ACNE_DETECT_MODEL_FILE", "acne.pt").strip()
+FACE_LANDMARKER_MODEL_REPO = os.getenv("FACE_LANDMARKER_MODEL_REPO", "google/mediapipe").strip()
+FACE_LANDMARKER_MODEL_FILE = os.getenv("FACE_LANDMARKER_MODEL_FILE", "face_landmarker.task").strip()
 ACNE_DETECT_CONF = float(os.getenv("ACNE_DETECT_CONF", "0.05"))
 ACNE_DETECT_IOU = float(os.getenv("ACNE_DETECT_IOU", "0.55"))
 ACNE_DETECT_MAX_DET = int(os.getenv("ACNE_DETECT_MAX_DET", "250"))
@@ -67,7 +69,8 @@ UNIFORM_FACE_ALPHA = int(os.getenv("UNIFORM_FACE_ALPHA", "120"))
 _clip_classifier = None
 _acne_classifier = None
 _acne_detector = None
-_face_mesh = None
+_face_landmarker = None
+_face_landmarker_initialized = False
 
 
 def _get_clip_classifier():
@@ -107,21 +110,58 @@ def _get_acne_detector():
     return _acne_detector
 
 
-def _get_face_mesh():
-    global _face_mesh
-    if _face_mesh is None:
+def _get_face_landmarker():
+    global _face_landmarker, _face_landmarker_initialized
+    if _face_landmarker_initialized:
+        return _face_landmarker
+
+    _face_landmarker_initialized = True
+
+    # Try HuggingFace Hub first, fall back to Google CDN
+    model_path = None
+    try:
+        model_path = hf_hub_download(
+            repo_id=FACE_LANDMARKER_MODEL_REPO,
+            filename=FACE_LANDMARKER_MODEL_FILE,
+        )
+    except Exception as e:
+        print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
         try:
-            _face_mesh = mp.solutions.face_mesh.FaceMesh(
-                static_image_mode=True,
-                max_num_faces=1,
-                refine_landmarks=True,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5,
+            import urllib.request
+            import tempfile
+            url = (
+                "https://storage.googleapis.com/mediapipe-models/"
+                "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
             )
-        except AttributeError:
-            # mediapipe >= 0.10 dropped the solutions API on some builds
-            _face_mesh = None
-    return _face_mesh
+            cache_dir = os.path.join(tempfile.gettempdir(), "mediapipe_models")
+            os.makedirs(cache_dir, exist_ok=True)
+            model_path = os.path.join(cache_dir, "face_landmarker.task")
+            if not os.path.exists(model_path):
+                urllib.request.urlretrieve(url, model_path)
+        except Exception as e2:
+            print(f"WARNING: CDN download also failed ({e2})", flush=True)
+            _face_landmarker = None
+            return None
+
+    try:
+        from mediapipe.tasks import python as _mp_python
+        from mediapipe.tasks.python import vision as _mp_vision
+        base_options = _mp_python.BaseOptions(model_asset_path=model_path)
+        options = _mp_vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_face_presence_score=0.5,
+            min_tracking_confidence=0.5,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+        )
+        _face_landmarker = _mp_vision.FaceLandmarker.create_from_options(options)
+    except Exception as e:
+        print(f"WARNING: FaceLandmarker init failed: {e}", flush=True)
+        _face_landmarker = None
+
+    return _face_landmarker
 
 
 def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
