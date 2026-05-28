@@ -9,7 +9,6 @@ def _reload_app():
     """Re-import app so module-level globals reset between tests."""
     import app as _app
     _app._face_landmarker = None
-    _app._face_landmarker_initialized = False
     return _app
 
 
@@ -44,7 +43,6 @@ def test_get_face_landmarker_is_cached():
     app = _reload_app()
     fake_landmarker = MagicMock()
     app._face_landmarker = fake_landmarker
-    app._face_landmarker_initialized = True
 
     with patch("app.hf_hub_download") as mock_dl:
         result = app._get_face_landmarker()
