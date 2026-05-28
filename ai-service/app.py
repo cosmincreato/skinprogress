@@ -1341,11 +1341,13 @@ def analyze_set(
             # even when the top label is "redness" or "under_eye_bags".
             heatmap_target = "acne"
 
-        heatmap_overlay_data_url = (
-            _safe_build_heatmap_overlay(image, heatmap_target)
-            if HEATMAP_ENABLED
-            else None
-        )
+        detections: list[dict] = []
+        if HEATMAP_ENABLED and HEATMAP_BACKEND == "yolo_acne":
+            heatmap_overlay_data_url, detections = _build_composite_heatmap_overlay_and_metadata(image)
+        elif HEATMAP_ENABLED:
+            heatmap_overlay_data_url = _safe_build_heatmap_overlay(image, heatmap_target)
+        else:
+            heatmap_overlay_data_url = None
 
         per_angle[angle] = {
             "label": label,
@@ -1353,6 +1355,7 @@ def analyze_set(
             "scores": scores,
             "heatmap_target": heatmap_target,
             "heatmap_overlay_data_url": heatmap_overlay_data_url,
+            "detections": detections,
         }
 
         for key in overall_scores:
