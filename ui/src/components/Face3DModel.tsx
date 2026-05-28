@@ -25,23 +25,6 @@ function hitTestDetection(imgX: number, imgY: number, det: Detection): boolean {
 const FACE_MODEL =
   "https://raw.githubusercontent.com/mrdoob/three.js/r168/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb";
 
-function scoreToHeat(s: number): THREE.Color {
-  const t = Math.max(0, Math.min(1, s));
-  if (t < 0.5) {
-    const u = t * 2;
-    return new THREE.Color(
-      0.133 + u * 0.785,
-      0.773 - u * 0.071,
-      0.369 - u * 0.338,
-    );
-  }
-  const u = (t - 0.5) * 2;
-  return new THREE.Color(
-    0.918 + u * 0.019,
-    0.702 - u * 0.435,
-    0.031 + u * 0.236,
-  );
-}
 
 // YCrCb skin detection — same thresholds as the Python backend's _build_skin_mask
 function isSkinPixel(r: number, g: number, b: number): boolean {
@@ -69,15 +52,14 @@ interface Props {
   detections?: Detection[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// @ts-ignore TS6133 - scores is part of the Props interface for API compatibility
 export function Face3DModel({ scores, frontPhotoUrl, detections }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const acne = scores.acne ?? 0;
-  const red = scores.redness ?? 0;
-  const eyeS = scores.under_eye_bags ?? 0;
   const detectionsKey = JSON.stringify(detections ?? []);
 
   // Effect 1: load original selfie, detect face skin region via YCrCb
@@ -281,74 +263,7 @@ export function Face3DModel({ scores, frontPhotoUrl, detections }: Props) {
     };
     loop();
 
-    // Zone colors derived from scores — used for back-of-head and non-skin vertices
-    const zc = {
-      forehead: scoreToHeat(acne * 0.9),
-      leftCheek: scoreToHeat(red),
-      rightCheek: scoreToHeat(red),
-      nose: scoreToHeat((acne + red) / 2),
-      chin: scoreToHeat(acne * 0.7),
-      underEye: scoreToHeat(eyeS),
-    };
-    const skinBase = new THREE.Color(0.70, 0.50, 0.40);
     const skinDark = new THREE.Color(0.25, 0.14, 0.10);
-
-    const lerp = (a: THREE.Color, b: THREE.Color, t: number) =>
-      a.clone().lerp(b, Math.max(0, Math.min(1, t)));
-
-    // LeePerrySmith model: face points +Z, normY ∈ [0,1] (0=chin, 1=crown),
-    // normX ∈ [-1,1] (left ear to right ear in world space).
-    function zoneColor(normX: number, normY: number, fnz: number): THREE.Color {
-      if (fnz < 0.0)
-        return skinDark
-          .clone()
-          .lerp(skinBase, Math.max(0, fnz + 1) * 0.25);
-
-      // Under-eye bags
-      if (
-        normY > 0.44 &&
-        normY < 0.60 &&
-        Math.abs(normX) > 0.10 &&
-        Math.abs(normX) < 0.50 &&
-        fnz > 0.15
-      )
-        return lerp(skinBase, zc.underEye, 0.82);
-
-      // Forehead
-      if (normY > 0.66)
-        return lerp(
-          skinBase,
-          zc.forehead,
-          Math.min(1, (normY - 0.66) / 0.22) * 0.85,
-        );
-
-      // Cheeks
-      if (normY > 0.26 && normY < 0.60) {
-        if (normX > 0.28)
-          return lerp(
-            skinBase,
-            zc.leftCheek,
-            Math.min(1, (normX - 0.28) / 0.26) * 0.85,
-          );
-        if (normX < -0.28)
-          return lerp(
-            skinBase,
-            zc.rightCheek,
-            Math.min(1, (-normX - 0.28) / 0.26) * 0.85,
-          );
-      }
-
-      // Nose
-      if (Math.abs(normX) < 0.18 && normY > 0.30 && normY < 0.54 && fnz > 0.32)
-        return lerp(skinBase, zc.nose, 0.80);
-
-      // Chin
-      if (normY < 0.22)
-        return lerp(skinBase, zc.chin, Math.min(1, (0.22 - normY) / 0.18) * 0.75);
-
-      return skinBase.clone();
-    }
-    void zoneColor; // retained for Task 4 cleanup
 
     // Procedural roughness texture — simulates pore microstructure
     const roughCanvas = document.createElement("canvas");
