@@ -83,7 +83,7 @@ export function HeatmapOverlay({
 
         {scale &&
           detections.map((det, i) => {
-            if (det.type === "spot" && det.x !== undefined) {
+            if (det.type === "spot" && det.x !== undefined && det.y !== undefined) {
               const cx = det.x * scale.x;
               const cy = det.y * scale.y;
               const r = (det.radius ?? 15) * Math.min(scale.x, scale.y);
