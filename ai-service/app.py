@@ -180,12 +180,30 @@ def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
     if landmarker is None:
         return None
     try:
+        w, h = image.size
         img_rgb = np.array(image)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
         result = landmarker.detect(mp_image)
+
         if not result.face_landmarks:
-            return None
-        w, h = image.size
+            # Right-facing profiles often fail — try horizontally flipped, then mirror x back
+            print("DEBUG: FaceLandmarker found no face, retrying with flipped image", flush=True)
+            img_flipped = np.fliplr(img_rgb).copy()
+            mp_image_flipped = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_flipped)
+            result = landmarker.detect(mp_image_flipped)
+            if not result.face_landmarks:
+                return None
+            lms = result.face_landmarks[0]
+            pts = np.array(
+                [
+                    [int(np.clip((1.0 - lm.x) * w, 0, w - 1)), int(np.clip(lm.y * h, 0, h - 1))]
+                    for lm in lms
+                ],
+                dtype=np.int32,
+            )
+            print("DEBUG: Flipped detection succeeded, mirrored landmarks back", flush=True)
+            return pts
+
         lms = result.face_landmarks[0]
         pts = np.array(
             [
