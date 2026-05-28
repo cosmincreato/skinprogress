@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { Face3DModel } from "../components/Face3DModel";
+import { HeatmapOverlay, type Detection } from "../components/HeatmapOverlay";
 import { getAuthToken } from "../services/authService";
 
 type SelfieAngle = "front" | "left" | "right";
@@ -32,6 +33,7 @@ interface AngleAnalysis {
   scores: Record<string, number>;
   heatmap_target?: string;
   heatmap_overlay_data_url?: string | null;
+  detections?: Detection[];
 }
 
 interface SetAnalysis {
@@ -292,6 +294,9 @@ const GalleryPage = () => {
             heatmapFrontUrl?: string;
             heatmapLeftUrl?: string;
             heatmapRightUrl?: string;
+            detectionsFront?: string | null;
+            detectionsLeft?: string | null;
+            detectionsRight?: string | null;
             timestamp?: string;
             status?: string;
           }) => {
@@ -309,6 +314,14 @@ const GalleryPage = () => {
             console.log(
               `  Final URLs: front=${frontUrl}, left=${leftUrl}, right=${rightUrl}`,
             );
+
+            const parseDets = (json?: string | null): Detection[] => {
+              try { return json ? JSON.parse(json) : []; }
+              catch { return []; }
+            };
+            const frontDets = parseDets(analysis.detectionsFront);
+            const leftDets = parseDets(analysis.detectionsLeft);
+            const rightDets = parseDets(analysis.detectionsRight);
 
             const overallScores: Record<string, number> = {
               acne: (analysis.acneSeverity ?? 0) / 10,
@@ -328,18 +341,21 @@ const GalleryPage = () => {
                   confidence: 1.0,
                   scores: overallScores,
                   heatmap_overlay_data_url: frontUrl,
+                  detections: frontDets,
                 },
                 left: {
                   label: "completed",
                   confidence: 1.0,
                   scores: overallScores,
                   heatmap_overlay_data_url: leftUrl,
+                  detections: leftDets,
                 },
                 right: {
                   label: "completed",
                   confidence: 1.0,
                   scores: overallScores,
                   heatmap_overlay_data_url: rightUrl,
+                  detections: rightDets,
                 },
               },
               summary: "Analysis from database",
@@ -1259,24 +1275,16 @@ const GalleryPage = () => {
                               </p>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {angleOrder.map((angle) => {
-                                  const overlayUrl =
-                                    analysisByDate[selectedDay.date].per_angle[
-                                      angle
-                                    ]?.heatmap_overlay_data_url ?? "";
+                                  const angleData = analysisByDate[selectedDay.date].per_angle[angle];
+                                  const overlayUrl = angleData?.heatmap_overlay_data_url ?? "";
+                                  const detections = angleData?.detections ?? [];
                                   return overlayUrl ? (
-                                    <div
+                                    <HeatmapOverlay
                                       key={`${selectedDay.date}-heatmap-${angle}`}
-                                      className="rounded-xl overflow-hidden border border-slate-700"
-                                    >
-                                      <img
-                                        src={overlayUrl}
-                                        alt={`${formatAngleLabel(angle)} heatmap`}
-                                        className="w-full aspect-[4/3] object-cover"
-                                      />
-                                      <p className="text-center text-[11px] py-2 text-on-surface-variant bg-slate-900/60">
-                                        {formatAngleLabel(angle)}
-                                      </p>
-                                    </div>
+                                      imageUrl={overlayUrl}
+                                      detections={detections}
+                                      angleLabel={formatAngleLabel(angle)}
+                                    />
                                   ) : (
                                     <div
                                       key={`${selectedDay.date}-heatmap-${angle}`}
