@@ -5,6 +5,7 @@ from io import BytesIO
 from typing import Dict
 from dotenv import load_dotenv, find_dotenv
 import cv2
+import mediapipe as mp
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image
@@ -165,26 +166,30 @@ def _get_face_landmarker():
     return _face_landmarker
 
 
-def _get_face_mesh():
-    return None
-
-
 def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
     """Returns (N,2) array of landmark pixel coords, or None."""
-    mesh = _get_face_mesh()
-    if mesh is None:
+    landmarker = _get_face_landmarker()
+    if landmarker is None:
         return None
-    img_rgb = np.array(image)
-    res = mesh.process(img_rgb)
-    if not res.multi_face_landmarks:
+    try:
+        img_rgb = np.array(image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+        result = landmarker.detect(mp_image)
+        if not result.face_landmarks:
+            return None
+        w, h = image.size
+        lms = result.face_landmarks[0]
+        pts = np.array(
+            [
+                [int(np.clip(lm.x * w, 0, w - 1)), int(np.clip(lm.y * h, 0, h - 1))]
+                for lm in lms
+            ],
+            dtype=np.int32,
+        )
+        return pts
+    except Exception as e:
+        print(f"WARNING: FaceLandmarker detection failed: {e}", flush=True)
         return None
-    lm = res.multi_face_landmarks[0].landmark
-    w, h = image.size
-    pts = np.zeros((len(lm), 2), dtype=np.int32)
-    for i, p in enumerate(lm):
-        pts[i, 0] = int(np.clip(p.x * w, 0, w - 1))
-        pts[i, 1] = int(np.clip(p.y * h, 0, h - 1))
-    return pts
 
 
 def _mask_from_polygon(
