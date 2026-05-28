@@ -71,3 +71,30 @@ def test_face_focus_mask_falls_back_when_no_landmarks():
         mask = _build_face_focus_mask(640, 480, img)
     assert mask.shape == (480, 640)
     assert mask.max() > 0
+
+
+def test_get_face_focus_bounds_uses_silhouette_when_landmarks_available():
+    """Bounds derived from silhouette indices min/max when landmarks available."""
+    from app import _get_face_focus_bounds, FACE_SILHOUETTE_INDICES
+    pts = make_realistic_pts(640, 480)
+    img = PILImage.fromarray(np.full((480, 640, 3), 128, dtype=np.uint8))
+    with patch("app._face_landmarks_xy", return_value=pts):
+        left, top, right, bottom = _get_face_focus_bounds(640, 480, img)
+    expected_left = int(np.clip(pts[FACE_SILHOUETTE_INDICES, 0].min(), 0, 639))
+    expected_right = int(np.clip(pts[FACE_SILHOUETTE_INDICES, 0].max(), 0, 639))
+    assert left == expected_left
+    assert right == expected_right
+    assert right > left
+    assert bottom > top
+
+
+def test_get_face_focus_bounds_falls_back_when_no_landmarks():
+    """Returns valid bounds even when _face_landmarks_xy returns None."""
+    from app import _get_face_focus_bounds
+    img = PILImage.fromarray(np.full((480, 640, 3), 128, dtype=np.uint8))
+    with patch("app._face_landmarks_xy", return_value=None):
+        left, top, right, bottom = _get_face_focus_bounds(640, 480, img)
+    assert right > left
+    assert bottom > top
+    assert left >= 0 and top >= 0
+    assert right <= 640 and bottom <= 480

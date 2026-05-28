@@ -1018,6 +1018,17 @@ def _get_face_focus_bounds(
     image_height: int,
     image: Image.Image,
 ) -> tuple[int, int, int, int]:
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        sil_pts = pts[FACE_SILHOUETTE_INDICES]
+        left = int(np.clip(sil_pts[:, 0].min(), 0, image_width - 1))
+        right = int(np.clip(sil_pts[:, 0].max(), 0, image_width - 1))
+        top = int(np.clip(sil_pts[:, 1].min(), 0, image_height - 1))
+        bottom = int(np.clip(sil_pts[:, 1].max(), 0, image_height - 1))
+        if right > left and bottom > top:
+            return left, top, right, bottom
+
+    # Fallback: Haar bbox or center ellipse
     bbox = _detect_face_bbox(image)
     if bbox is not None:
         x, y, w, h = bbox
