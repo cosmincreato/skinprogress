@@ -119,15 +119,17 @@ def _get_face_landmarker():
         if _face_landmarker is not None:
             return _face_landmarker
 
-        # Try HuggingFace Hub first, fall back to Google CDN
+        # Try HuggingFace Hub first (if repo configured), fall back to Google CDN
         model_path = None
-        try:
-            model_path = hf_hub_download(
-                repo_id=FACE_LANDMARKER_MODEL_REPO,
-                filename=FACE_LANDMARKER_MODEL_FILE,
-            )
-        except Exception as e:
-            print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
+        if FACE_LANDMARKER_MODEL_REPO:
+            try:
+                model_path = hf_hub_download(
+                    repo_id=FACE_LANDMARKER_MODEL_REPO,
+                    filename=FACE_LANDMARKER_MODEL_FILE,
+                )
+            except Exception as e:
+                print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
+        if model_path is None:
             try:
                 import urllib.request
                 import tempfile
@@ -154,7 +156,7 @@ def _get_face_landmarker():
                 base_options=base_options,
                 num_faces=1,
                 min_face_detection_confidence=0.5,
-                min_face_presence_score=0.5,
+                min_face_presence_confidence=0.5,
                 min_tracking_confidence=0.5,
                 output_face_blendshapes=False,
                 output_facial_transformation_matrixes=False,
