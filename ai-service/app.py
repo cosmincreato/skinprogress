@@ -647,9 +647,18 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
         image,
     )
 
+    # Crop to face region — YOLO only sees the face, not hands/hair/background
+    crop_left, crop_top = focus_left, focus_top
+    face_crop = image.crop((crop_left, crop_top, focus_right, focus_bottom))
+    crop_w, crop_h = face_crop.size
+    if crop_w < 8 or crop_h < 8:
+        print("WARNING: Face crop too small, running YOLO on full image", flush=True)
+        face_crop = image
+        crop_left, crop_top = 0, 0
+
     detector = _get_acne_detector()
     results = detector.predict(
-        np.array(image),
+        np.array(face_crop),
         verbose=False,
         conf=ACNE_DETECT_CONF,
         iou=ACNE_DETECT_IOU,
@@ -685,8 +694,9 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
     if not use_color_fallback:
         for i in range(det_count):
             x1, y1, x2, y2 = [float(v) for v in xyxy[i].tolist()]
-            cx = int((x1 + x2) / 2)
-            cy = int((y1 + y2) / 2)
+            # Offset crop-relative coordinates back to full image space
+            cx = int((x1 + x2) / 2) + crop_left
+            cy = int((y1 + y2) / 2) + crop_top
             bw = max(2.0, x2 - x1)
             bh = max(2.0, y2 - y1)
             radius = max(6.0, 0.5 * (bw + bh) * 0.5 * ACNE_HEATMAP_RADIUS_RATIO)

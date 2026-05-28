@@ -71,3 +71,17 @@ def test_small_bbox_falls_back_to_haar():
         result = _detect_face_bbox(make_solid_image(w=300, h=300))
 
     assert result is None  # fw=5, fh=5 < 20 → falls through to Haar → None
+
+
+def test_crop_offset_centres_are_within_original_image():
+    """
+    Simulates what the updated YOLO loop does: detection coords from a crop
+    must be offset by crop origin to land inside the original image.
+    """
+    crop_left, crop_top = 80, 100
+    x1, y1, x2, y2 = 10.0, 15.0, 50.0, 55.0
+    cx = int((x1 + x2) / 2) + crop_left
+    cy = int((y1 + y2) / 2) + crop_top
+
+    assert cx == 110   # 30 + 80
+    assert cy == 135   # 35 + 100
