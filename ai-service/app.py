@@ -933,27 +933,18 @@ def _build_composite_heatmap_overlay_and_metadata(
     image: Image.Image,
 ) -> tuple[str | None, list[dict]]:
     """
-    Builds a single composite heatmap PNG (acne=red, redness=orange, under-eye=purple)
-    and returns detection metadata for hover tooltips.
+    Builds detection metadata for all conditions (acne, redness, under-eye bags)
+    and returns the standard acne heatmap overlay with detection metadata for hover tooltips.
     Returns (data_url_or_None, detections_list).
     """
-    # Detection thresholds for zone detection (all rendered in red)
+    w, h = image.size
+    detections: list[dict] = []
+
+    # Detection thresholds for zone detection
     REDNESS_DETECTION_THRESHOLD = 0.3
     UNDEREYE_DETECTION_THRESHOLD = 0.3
-    ACNE_OVERLAY_THRESHOLD = 0.01
 
-    w, h = image.size
-    if w < 8 or h < 8:
-        return None, []
-
-    overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    detections: list[dict] = []
-    y_indices, x_indices = np.ogrid[:h, :w]
-
-    face_mask = _build_face_focus_mask(w, h, image)
-    skin_mask = _build_skin_mask(image)
-
-    # Build detection metadata for all conditions but render everything red
+    # Build detection metadata for all conditions
     # Redness zone detection
     try:
         redness_heat = _build_redness_heatmap(image)
@@ -984,7 +975,12 @@ def _build_composite_heatmap_overlay_and_metadata(
     except Exception as e:
         print(f"WARNING: under-eye detection failed: {e}", flush=True)
 
-    # ── Acne layer (all conditions rendered in red) ──
+    # Use the standard acne heatmap overlay (green→yellow→red gradient)
+    # with acne spot detection metadata added
+    face_mask = _build_face_focus_mask(w, h, image)
+    skin_mask = _build_skin_mask(image)
+    y_indices, x_indices = np.ogrid[:h, :w]
+
     try:
         focus_left, focus_top, focus_right, focus_bottom = _get_face_focus_bounds(w, h, image)
         crop_left, crop_top = focus_left, focus_top
@@ -1044,31 +1040,13 @@ def _build_composite_heatmap_overlay_and_metadata(
                 })
 
         acne_heat *= face_mask * skin_mask
-        bk = max(25, (min(w, h) // 28) | 1)
-        acne_heat = cv2.GaussianBlur(acne_heat, (bk, bk), 0)
-        if acne_heat.max() > 0:
-            acne_heat /= acne_heat.max()
-
-        a_mask = acne_heat > ACNE_OVERLAY_THRESHOLD
-        if a_mask.any():
-            ac = np.zeros((h, w, 3), dtype=np.float32)
-            ac[..., 0] = np.clip(255 - acne_heat * 35, 0, 255)
-            ac[..., 1] = np.clip(200 - acne_heat * 180, 0, 255)
-            ac[..., 2] = np.clip(200 - acne_heat * 180, 0, 255)
-            aa = (acne_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
-            aa[~a_mask] = 0
-            overlay_rgba[a_mask, :3] = ac[a_mask].astype(np.uint8)
-            overlay_rgba[a_mask, 3] = aa[a_mask]
     except Exception as e:
-        print(f"WARNING: acne layer failed: {e}", flush=True)
+        print(f"WARNING: acne detection failed: {e}", flush=True)
+        acne_heat = np.zeros((h, w), dtype=np.float32)
 
-    if not (overlay_rgba[..., 3] > 0).any():
-        # No conditions detected above threshold; return original image (not None)
-        return _to_png_data_url(image), detections
-
-    overlay_img = Image.fromarray(overlay_rgba, mode="RGBA")
-    composite = Image.alpha_composite(image.convert("RGBA"), overlay_img)
-    return _to_png_data_url(composite), detections
+    # Render using standard gradient overlay
+    heatmap_overlay_url = _safe_build_heatmap_overlay(image, "acne") if acne_heat.max() > 0 else None
+    return heatmap_overlay_url, detections
 
 
 def _build_face_silhouette_mask(

@@ -29,12 +29,6 @@ const CONDITION_LABELS: Record<DetectionCondition, string> = {
   under_eye_bags: "Under-eye bags",
 };
 
-const CONDITION_COLORS: Record<DetectionCondition, string> = {
-  acne: "#DC1414",
-  redness: "#E66400",
-  under_eye_bags: "#6400C8",
-};
-
 function severityLabel(s: number): string {
   if (s < 0.34) return "Mild";
   if (s < 0.67) return "Moderate";
@@ -72,10 +66,6 @@ export function HeatmapOverlay({
     ro.observe(container);
     return () => ro.disconnect();
   }, []);
-
-  const presentConditions = [
-    ...new Set(detections.map((d) => d.condition)),
-  ] as DetectionCondition[];
 
   return (
     <div className="space-y-1">
@@ -166,23 +156,6 @@ export function HeatmapOverlay({
           {angleLabel}
         </p>
       </div>
-
-      {presentConditions.length > 0 && (
-        <div className="flex gap-3 flex-wrap px-1">
-          {presentConditions.map((condition) => (
-            <span
-              key={condition}
-              className="flex items-center gap-1 text-[11px] text-on-surface-variant"
-            >
-              <span
-                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: CONDITION_COLORS[condition] }}
-              />
-              {CONDITION_LABELS[condition]}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
