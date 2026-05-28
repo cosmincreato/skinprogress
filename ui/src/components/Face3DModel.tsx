@@ -33,13 +33,15 @@ function isSkinPixel(r: number, g: number, b: number): boolean {
 }
 
 interface FaceRegion {
-  data: Uint8ClampedArray;
   W: number;
   H: number;
   cx: number; // face centroid x in image pixels
   cy: number; // face centroid y in image pixels
   rx: number; // face half-width
   ry: number; // face half-height
+  skinR: number; // median skin R channel, 0-255
+  skinG: number; // median skin G channel, 0-255
+  skinB: number; // median skin B channel, 0-255
 }
 
 interface Props {
@@ -108,8 +110,7 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
         const roughCx = sumX / skinCount;
         const roughCy = sumY / skinCount;
 
-        // Pass 2: keep only face skin pixels (within 45% of min dimension from centroid)
-        // This excludes neck, shoulders, background, and skin-colored non-face areas.
+        // Pass 2: face skin pixels within 45% of min dimension — collect geometry + pixel values
         const maxRadius = Math.min(W, H) * 0.45;
         let faceCount = 0,
           faceSumX = 0,
@@ -118,6 +119,9 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
           maxX = 0,
           minY = H,
           maxY = 0;
+        const rVals: number[] = [],
+          gVals: number[] = [],
+          bVals: number[] = [];
         for (let y = 0; y < H; y++) {
           for (let x = 0; x < W; x++) {
             const i = (y * W + x) * 4;
@@ -130,6 +134,9 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
+            rVals.push(data[i]);
+            gVals.push(data[i + 1]);
+            bVals.push(data[i + 2]);
           }
         }
 
@@ -138,14 +145,21 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
           return;
         }
 
+        rVals.sort((a, b) => a - b);
+        gVals.sort((a, b) => a - b);
+        bVals.sort((a, b) => a - b);
+        const mid = Math.floor(rVals.length / 2);
+
         regionRef.current = {
-          data,
           W,
           H,
           cx: faceSumX / faceCount,
           cy: faceSumY / faceCount,
           rx: (maxX - minX) / 2,
           ry: (maxY - minY) / 2,
+          skinR: rVals[mid] ?? 180,
+          skinG: gVals[mid] ?? 140,
+          skinB: bVals[mid] ?? 120,
         };
       } catch (err) {
         console.warn("Face3DModel: skin detection failed", err);
