@@ -938,11 +938,11 @@ def _build_composite_heatmap_overlay_and_metadata(
     Returns (data_url_or_None, detections_list).
     """
     # Detection thresholds for overlay visibility and zone detection
-    REDNESS_OVERLAY_THRESHOLD = 0.12
+    REDNESS_OVERLAY_THRESHOLD = 0.05
     REDNESS_DETECTION_THRESHOLD = 0.3
-    UNDEREYE_OVERLAY_THRESHOLD = 0.12
+    UNDEREYE_OVERLAY_THRESHOLD = 0.05
     UNDEREYE_DETECTION_THRESHOLD = 0.3
-    ACNE_OVERLAY_THRESHOLD = 0.08
+    ACNE_OVERLAY_THRESHOLD = 0.03
 
     w, h = image.size
     if w < 8 or h < 8:
