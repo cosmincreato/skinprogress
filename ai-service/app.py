@@ -503,6 +503,28 @@ def _to_png_data_url(image: Image.Image) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+def _get_condition_color(condition: str, severity: float) -> tuple[int, int, int]:
+    s = float(np.clip(severity, 0.0, 1.0))
+    if condition == "acne":
+        return (
+            int(np.clip(255 - s * 35, 0, 255)),
+            int(np.clip(200 - s * 180, 0, 255)),
+            int(np.clip(200 - s * 180, 0, 255)),
+        )
+    if condition == "redness":
+        return (
+            int(np.clip(255 - s * 25, 0, 255)),
+            int(np.clip(220 - s * 120, 0, 255)),
+            int(np.clip(180 - s * 180, 0, 255)),
+        )
+    # under_eye_bags
+    return (
+        int(np.clip(220 - s * 120, 0, 255)),
+        int(np.clip(200 - s * 200, 0, 255)),
+        int(np.clip(255 - s * 55, 0, 255)),
+    )
+
+
 def _get_severity_color(severity_score: float) -> tuple[int, int, int]:
     """
     Maps severity score (0-1) to RGB color:
@@ -927,6 +949,161 @@ def _build_uniform_face_overlay(image: Image.Image) -> str | None:
     overlay_image = Image.fromarray(overlay_rgba, mode="RGBA")
     composite = Image.alpha_composite(image.convert("RGBA"), overlay_image)
     return _to_png_data_url(composite)
+
+
+def _build_composite_heatmap_overlay_and_metadata(
+    image: Image.Image,
+) -> tuple[str | None, list[dict]]:
+    """
+    Builds a single composite heatmap PNG (acne=red, redness=orange, under-eye=purple)
+    and returns detection metadata for hover tooltips.
+    Returns (data_url_or_None, detections_list).
+    """
+    w, h = image.size
+    if w < 8 or h < 8:
+        return None, []
+
+    overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    detections: list[dict] = []
+    y_indices, x_indices = np.ogrid[:h, :w]
+
+    face_mask = _build_face_focus_mask(w, h, image)
+    skin_mask = _build_skin_mask(image)
+
+    # ── Layer 1: Redness ──
+    try:
+        redness_heat = _build_redness_heatmap(image)
+        r_mask = redness_heat > 0.12
+        if r_mask.any():
+            rc = np.zeros((h, w, 3), dtype=np.float32)
+            rc[..., 0] = np.clip(255 - redness_heat * 25, 0, 255)
+            rc[..., 1] = np.clip(220 - redness_heat * 120, 0, 255)
+            rc[..., 2] = np.clip(180 - redness_heat * 180, 0, 255)
+            ra = (redness_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
+            ra[~r_mask] = 0
+            overlay_rgba[r_mask, :3] = rc[r_mask].astype(np.uint8)
+            overlay_rgba[r_mask, 3] = ra[r_mask]
+            zone_mask = redness_heat > 0.3
+            if zone_mask.any():
+                ys, xs = np.where(zone_mask)
+                detections.append({
+                    "condition": "redness", "type": "zone",
+                    "x1": int(xs.min()), "y1": int(ys.min()),
+                    "x2": int(xs.max()), "y2": int(ys.max()),
+                    "severity": float(np.clip(redness_heat[zone_mask].mean(), 0, 1)),
+                })
+    except Exception as e:
+        print(f"WARNING: redness layer failed: {e}", flush=True)
+
+    # ── Layer 2: Under-eye bags ──
+    try:
+        undereye_heat = _build_under_eye_heatmap(image)
+        u_mask = undereye_heat > 0.12
+        if u_mask.any():
+            uc = np.zeros((h, w, 3), dtype=np.float32)
+            uc[..., 0] = np.clip(220 - undereye_heat * 120, 0, 255)
+            uc[..., 1] = np.clip(200 - undereye_heat * 200, 0, 255)
+            uc[..., 2] = np.clip(255 - undereye_heat * 55, 0, 255)
+            ua = (undereye_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
+            ua[~u_mask] = 0
+            overlay_rgba[u_mask, :3] = uc[u_mask].astype(np.uint8)
+            overlay_rgba[u_mask, 3] = ua[u_mask]
+            zone_mask = undereye_heat > 0.3
+            if zone_mask.any():
+                ys, xs = np.where(zone_mask)
+                detections.append({
+                    "condition": "under_eye_bags", "type": "zone",
+                    "x1": int(xs.min()), "y1": int(ys.min()),
+                    "x2": int(xs.max()), "y2": int(ys.max()),
+                    "severity": float(np.clip(undereye_heat[zone_mask].mean(), 0, 1)),
+                })
+    except Exception as e:
+        print(f"WARNING: under-eye layer failed: {e}", flush=True)
+
+    # ── Layer 3: Acne (top) ──
+    try:
+        focus_left, focus_top, focus_right, focus_bottom = _get_face_focus_bounds(w, h, image)
+        crop_left, crop_top = focus_left, focus_top
+        face_crop = image.crop((crop_left, crop_top, focus_right, focus_bottom))
+        if face_crop.size[0] < 8 or face_crop.size[1] < 8:
+            face_crop, crop_left, crop_top = image, 0, 0
+
+        acne_heat = np.zeros((h, w), dtype=np.float32)
+        det_count = 0
+        yolo_xyxy, yolo_conf = None, None
+
+        detector = _get_acne_detector()
+        results = detector.predict(
+            np.array(face_crop), verbose=False,
+            conf=ACNE_DETECT_CONF, iou=ACNE_DETECT_IOU, max_det=ACNE_DETECT_MAX_DET,
+        )
+        if results:
+            boxes = getattr(results[0], "boxes", None)
+            if boxes is not None and getattr(boxes, "xyxy", None) is not None:
+                yolo_xyxy = boxes.xyxy
+                yolo_conf = getattr(boxes, "conf", None)
+                det_count = int(yolo_xyxy.shape[0]) if hasattr(yolo_xyxy, "shape") else 0
+
+        use_color = det_count == 0
+        if not use_color:
+            for i in range(det_count):
+                x1, y1, x2, y2 = [float(v) for v in yolo_xyxy[i].tolist()]
+                cx = int((x1 + x2) / 2) + crop_left
+                cy = int((y1 + y2) / 2) + crop_top
+                bw, bh = max(2.0, x2 - x1), max(2.0, y2 - y1)
+                radius = max(6.0, 0.5 * (bw + bh) * 0.5 * ACNE_HEATMAP_RADIUS_RATIO)
+                sigma = max(6.0, radius / 1.8)
+                c = float(yolo_conf[i]) if yolo_conf is not None else 0.6
+                intensity = float(np.clip(c, 0.15, 1.0))
+                d2 = (x_indices - cx) ** 2 + (y_indices - cy) ** 2
+                acne_heat = np.maximum(acne_heat, (intensity * np.exp(-d2 / (2 * sigma**2))).astype(np.float32))
+                detections.append({
+                    "condition": "acne", "type": "spot",
+                    "x": cx, "y": cy,
+                    "radius": max(6, int(0.5 * (bw + bh) * 0.5)),
+                    "severity": float(np.clip(c, 0, 1)),
+                })
+
+        if use_color:
+            blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
+            for b in blemishes:
+                cx, cy = int(b["cx"]), int(b["cy"])
+                sev = float(b.get("severity", 0.5))
+                sigma = 18.0
+                d2 = (x_indices - cx) ** 2 + (y_indices - cy) ** 2
+                acne_heat = np.maximum(acne_heat, (sev * np.exp(-d2 / (2 * sigma**2))).astype(np.float32))
+                detections.append({
+                    "condition": "acne", "type": "spot",
+                    "x": cx, "y": cy,
+                    "radius": max(6, int(b.get("radius", 8))),
+                    "severity": float(np.clip(sev, 0, 1)),
+                })
+
+        acne_heat *= face_mask * skin_mask
+        bk = max(25, (min(w, h) // 28) | 1)
+        acne_heat = cv2.GaussianBlur(acne_heat, (bk, bk), 0)
+        if acne_heat.max() > 0:
+            acne_heat /= acne_heat.max()
+
+        a_mask = acne_heat > 0.08
+        if a_mask.any():
+            ac = np.zeros((h, w, 3), dtype=np.float32)
+            ac[..., 0] = np.clip(255 - acne_heat * 35, 0, 255)
+            ac[..., 1] = np.clip(200 - acne_heat * 180, 0, 255)
+            ac[..., 2] = np.clip(200 - acne_heat * 180, 0, 255)
+            aa = (acne_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
+            aa[~a_mask] = 0
+            overlay_rgba[a_mask, :3] = ac[a_mask].astype(np.uint8)
+            overlay_rgba[a_mask, 3] = aa[a_mask]
+    except Exception as e:
+        print(f"WARNING: acne layer failed: {e}", flush=True)
+
+    if not (overlay_rgba[..., 3] > 0).any():
+        return _to_png_data_url(image), detections
+
+    overlay_img = Image.fromarray(overlay_rgba, mode="RGBA")
+    composite = Image.alpha_composite(image.convert("RGBA"), overlay_img)
+    return _to_png_data_url(composite), detections
 
 
 def _build_face_silhouette_mask(
