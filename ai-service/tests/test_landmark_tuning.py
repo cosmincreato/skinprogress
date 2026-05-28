@@ -43,9 +43,10 @@ def test_nostril_mask_smaller_than_silhouette():
 
 
 def test_silhouette_mask_no_crash_on_degenerate_pts():
-    """All-zero landmark points must not crash — just return a valid mask."""
+    """All-same-position landmark points must not crash and return a valid float mask."""
     from app import _build_face_silhouette_mask
     pts = np.zeros((478, 2), dtype=np.int32)
     mask = _build_face_silhouette_mask(100, 100, pts)
     assert mask.shape == (100, 100)
-    assert mask.max() <= 1.0
+    assert mask.dtype == np.float32
+    assert 0.0 <= mask.min() and mask.max() <= 1.0

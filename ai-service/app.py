@@ -912,9 +912,8 @@ def _build_face_silhouette_mask(
     image_width: int, image_height: int, pts: np.ndarray
 ) -> np.ndarray:
     mask = np.zeros((image_height, image_width), dtype=np.float32)
+    # pts is expected to be the 478-landmark array from _face_landmarks_xy
     sil_pts = pts[FACE_SILHOUETTE_INDICES]
-    if len(sil_pts) < 3:
-        return mask
     cv2.fillPoly(mask, [sil_pts.astype(np.int32)], 1.0)
     blur_kernel = max(21, (min(image_width, image_height) // 20) | 1)
     mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
@@ -925,9 +924,8 @@ def _build_nostril_exclusion_mask(
     image_width: int, image_height: int, pts: np.ndarray
 ) -> np.ndarray:
     mask = np.zeros((image_height, image_width), dtype=np.float32)
+    # pts is expected to be the 478-landmark array from _face_landmarks_xy
     nostril_pts = pts[NOSE_NOSTRIL_INDICES]
-    if len(nostril_pts) < 3:
-        return mask
     cv2.fillPoly(mask, [nostril_pts.astype(np.int32)], 1.0)
     blur_kernel = max(11, (min(image_width, image_height) // 40) | 1)
     mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
