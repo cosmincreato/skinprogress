@@ -885,6 +885,9 @@ public class UsersController : ControllerBase
                 HeatmapFrontUrl = heatmapUrls.GetValueOrDefault("front"),
                 HeatmapLeftUrl = heatmapUrls.GetValueOrDefault("left"),
                 HeatmapRightUrl = heatmapUrls.GetValueOrDefault("right"),
+                DetectionsFrontJson = perAngleObj?["front"]?["detections"]?.ToJsonString(),
+                DetectionsLeftJson = perAngleObj?["left"]?["detections"]?.ToJsonString(),
+                DetectionsRightJson = perAngleObj?["right"]?["detections"]?.ToJsonString(),
                 CreatedAt = DateTime.UtcNow,
             };
 
@@ -1033,6 +1036,9 @@ public class UsersController : ControllerBase
             heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
             heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
             heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
+            detectionsFront = ar.DetectionsFrontJson,
+            detectionsLeft = ar.DetectionsLeftJson,
+            detectionsRight = ar.DetectionsRightJson,
             timestamp = ar.Timestamp,
             status = ar.Status
         }).ToList();
