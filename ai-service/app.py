@@ -39,6 +39,12 @@ HEATMAP_NEGATIVE_LABEL = "clear healthy skin"
 FACE_EXPAND_X = 0.1
 FACE_EXPAND_Y_TOP = 0.15
 FACE_EXPAND_Y_BOTTOM = 0.25
+FACE_SILHOUETTE_INDICES = [
+    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+    172,  58, 132,  93, 234, 127, 162,  21,  54, 103,  67, 109,
+]
+NOSE_NOSTRIL_INDICES = [1, 2, 49, 98, 97, 326, 327, 279]
 
 MODEL_BACKEND = os.getenv("MODEL_BACKEND", "acne_severity").strip().lower()
 HEATMAP_ENABLED = os.getenv("HEATMAP_ENABLED", "1").strip().lower() in {
@@ -900,6 +906,32 @@ def _build_uniform_face_overlay(image: Image.Image) -> str | None:
     overlay_image = Image.fromarray(overlay_rgba, mode="RGBA")
     composite = Image.alpha_composite(image.convert("RGBA"), overlay_image)
     return _to_png_data_url(composite)
+
+
+def _build_face_silhouette_mask(
+    image_width: int, image_height: int, pts: np.ndarray
+) -> np.ndarray:
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    sil_pts = pts[FACE_SILHOUETTE_INDICES]
+    if len(sil_pts) < 3:
+        return mask
+    cv2.fillPoly(mask, [sil_pts.astype(np.int32)], 1.0)
+    blur_kernel = max(21, (min(image_width, image_height) // 20) | 1)
+    mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
+    return np.clip(mask, 0.0, 1.0)
+
+
+def _build_nostril_exclusion_mask(
+    image_width: int, image_height: int, pts: np.ndarray
+) -> np.ndarray:
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    nostril_pts = pts[NOSE_NOSTRIL_INDICES]
+    if len(nostril_pts) < 3:
+        return mask
+    cv2.fillPoly(mask, [nostril_pts.astype(np.int32)], 1.0)
+    blur_kernel = max(11, (min(image_width, image_height) // 40) | 1)
+    mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
+    return np.clip(mask, 0.0, 1.0)
 
 
 def _detect_face_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
