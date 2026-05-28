@@ -1012,33 +1012,43 @@ public class UsersController : ControllerBase
             return Forbid();
         }
 
-        var rawAnalyses = await _context.AnalysisResults
-            .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
-            .OrderByDescending(ar => ar.Timestamp)
-            .ToListAsync();
-
-        var analyses = rawAnalyses.Select(ar => new
+        List<dynamic> analyses;
+        try
         {
-            date = ar.Timestamp.ToString("yyyy-MM-dd"),
-            acneSeverity = ar.AcneSeverity,
-            rednessSeverity = ar.RednessSeverity,
-            underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
-            inflammationSeverity = ar.InflammationSeverity,
-            foreheadSeverity = ar.ForeheadSeverity,
-            leftCheekSeverity = ar.LeftCheekSeverity,
-            rightCheekSeverity = ar.RightCheekSeverity,
-            chinSeverity = ar.ChinSeverity,
-            noseSeverity = ar.NoseSeverity,
-            heatmapImageUrl = GetFullUrl(ar.HeatmapImageUrl),
-            heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
-            heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
-            heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
-            detectionsFront = ar.DetectionsFrontJson,
-            detectionsLeft = ar.DetectionsLeftJson,
-            detectionsRight = ar.DetectionsRightJson,
-            timestamp = ar.Timestamp,
-            status = ar.Status
-        }).ToList();
+            var rawAnalyses = await _context.AnalysisResults
+                .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
+                .OrderByDescending(ar => ar.Timestamp)
+                .ToListAsync();
+
+            analyses = rawAnalyses.Select(ar => (dynamic)new
+            {
+                date = ar.Timestamp.ToString("yyyy-MM-dd"),
+                acneSeverity = ar.AcneSeverity,
+                rednessSeverity = ar.RednessSeverity,
+                underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
+                inflammationSeverity = ar.InflammationSeverity,
+                foreheadSeverity = ar.ForeheadSeverity,
+                leftCheekSeverity = ar.LeftCheekSeverity,
+                rightCheekSeverity = ar.RightCheekSeverity,
+                chinSeverity = ar.ChinSeverity,
+                noseSeverity = ar.NoseSeverity,
+                heatmapImageUrl = GetFullUrl(ar.HeatmapImageUrl),
+                heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
+                heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
+                heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
+                detectionsFront = ar.DetectionsFrontJson,
+                detectionsLeft = ar.DetectionsLeftJson,
+                detectionsRight = ar.DetectionsRightJson,
+                timestamp = ar.Timestamp,
+                status = ar.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetAllAnalyses ERROR: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
 
         Console.WriteLine($"GetAllAnalyses for user {id}: Found {analyses.Count} completed analyses");
         foreach (var a in analyses)
