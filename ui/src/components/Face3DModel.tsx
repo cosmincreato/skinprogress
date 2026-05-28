@@ -52,8 +52,7 @@ interface Props {
   detections?: Detection[];
 }
 
-// @ts-expect-error TS6133 -- scores is part of the Props interface for API compatibility
-export function Face3DModel({ scores, frontPhotoUrl, detections }: Props) {
+export function Face3DModel({ frontPhotoUrl, detections }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
