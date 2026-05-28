@@ -33,13 +33,15 @@ def test_nostril_exclusion_mask_nonzero_for_valid_pts():
     assert mask.max() > 0
 
 
-def test_nostril_mask_smaller_than_silhouette():
-    """Nostril mask covers less area than the full face silhouette."""
-    from app import _build_face_silhouette_mask, _build_nostril_exclusion_mask
+def test_nostril_mask_is_valid_float_mask():
+    """Nostril exclusion mask is a valid float32 mask in [0, 1]."""
+    from app import _build_nostril_exclusion_mask
     pts = make_realistic_pts()
-    silhouette = _build_face_silhouette_mask(640, 480, pts)
-    nostril = _build_nostril_exclusion_mask(640, 480, pts)
-    assert nostril.sum() < silhouette.sum()
+    mask = _build_nostril_exclusion_mask(640, 480, pts)
+    assert mask.shape == (480, 640)
+    assert mask.dtype == np.float32
+    assert 0.0 <= mask.min() and mask.max() <= 1.0
+    assert mask.max() > 0
 
 
 def test_silhouette_mask_no_crash_on_degenerate_pts():

@@ -44,7 +44,10 @@ FACE_SILHOUETTE_INDICES = [
     397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
     172,  58, 132,  93, 234, 127, 162,  21,  54, 103,  67, 109,
 ]
-NOSE_NOSTRIL_INDICES = [1, 2, 49, 98, 97, 326, 327, 279]
+NOSE_NOSTRIL_INDICES = [
+    1, 2, 4, 5, 19, 48, 49, 64, 94, 97, 98, 115, 125, 129, 131,
+    279, 278, 294, 326, 327, 344, 358, 360,
+]
 
 MODEL_BACKEND = os.getenv("MODEL_BACKEND", "acne_severity").strip().lower()
 HEATMAP_ENABLED = os.getenv("HEATMAP_ENABLED", "1").strip().lower() in {
@@ -944,8 +947,10 @@ def _build_nostril_exclusion_mask(
     mask = np.zeros((image_height, image_width), dtype=np.float32)
     # pts is expected to be the 478-landmark array from _face_landmarks_xy
     nostril_pts = pts[NOSE_NOSTRIL_INDICES]
-    cv2.fillPoly(mask, [nostril_pts.astype(np.int32)], 1.0)
-    blur_kernel = max(11, (min(image_width, image_height) // 40) | 1)
+    hull = cv2.convexHull(nostril_pts.astype(np.int32))
+    cv2.fillPoly(mask, [hull.reshape(-1, 2)], 1.0)
+    # Use same kernel size as silhouette mask so subtraction is strong enough
+    blur_kernel = max(21, (min(image_width, image_height) // 20) | 1)
     mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
     return np.clip(mask, 0.0, 1.0)
 
