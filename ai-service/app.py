@@ -937,10 +937,8 @@ def _build_composite_heatmap_overlay_and_metadata(
     and returns detection metadata for hover tooltips.
     Returns (data_url_or_None, detections_list).
     """
-    # Detection thresholds for overlay visibility and zone detection
-    REDNESS_OVERLAY_THRESHOLD = 0.01
+    # Detection thresholds for zone detection (all rendered in red)
     REDNESS_DETECTION_THRESHOLD = 0.3
-    UNDEREYE_OVERLAY_THRESHOLD = 0.01
     UNDEREYE_DETECTION_THRESHOLD = 0.3
     ACNE_OVERLAY_THRESHOLD = 0.01
 
@@ -955,57 +953,38 @@ def _build_composite_heatmap_overlay_and_metadata(
     face_mask = _build_face_focus_mask(w, h, image)
     skin_mask = _build_skin_mask(image)
 
-    # ── Layer 1: Redness ──
+    # Build detection metadata for all conditions but render everything red
+    # Redness zone detection
     try:
         redness_heat = _build_redness_heatmap(image)
-        r_mask = redness_heat > REDNESS_OVERLAY_THRESHOLD
-        if r_mask.any():
-            rc = np.zeros((h, w, 3), dtype=np.float32)
-            rc[..., 0] = np.clip(255 - redness_heat * 25, 0, 255)
-            rc[..., 1] = np.clip(220 - redness_heat * 120, 0, 255)
-            rc[..., 2] = np.clip(180 - redness_heat * 180, 0, 255)
-            ra = (redness_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
-            ra[~r_mask] = 0
-            overlay_rgba[r_mask, :3] = rc[r_mask].astype(np.uint8)
-            overlay_rgba[r_mask, 3] = ra[r_mask]
-            zone_mask = redness_heat > REDNESS_DETECTION_THRESHOLD
-            if zone_mask.any():
-                ys, xs = np.where(zone_mask)
-                detections.append({
-                    "condition": "redness", "type": "zone",
-                    "x1": int(xs.min()), "y1": int(ys.min()),
-                    "x2": int(xs.max()), "y2": int(ys.max()),
-                    "severity": float(np.clip(redness_heat[zone_mask].mean(), 0, 1)),
-                })
+        zone_mask = redness_heat > REDNESS_DETECTION_THRESHOLD
+        if zone_mask.any():
+            ys, xs = np.where(zone_mask)
+            detections.append({
+                "condition": "redness", "type": "zone",
+                "x1": int(xs.min()), "y1": int(ys.min()),
+                "x2": int(xs.max()), "y2": int(ys.max()),
+                "severity": float(np.clip(redness_heat[zone_mask].mean(), 0, 1)),
+            })
     except Exception as e:
-        print(f"WARNING: redness layer failed: {e}", flush=True)
+        print(f"WARNING: redness detection failed: {e}", flush=True)
 
-    # ── Layer 2: Under-eye bags ──
+    # Under-eye bags zone detection
     try:
         undereye_heat = _build_under_eye_heatmap(image)
-        u_mask = undereye_heat > UNDEREYE_OVERLAY_THRESHOLD
-        if u_mask.any():
-            uc = np.zeros((h, w, 3), dtype=np.float32)
-            uc[..., 0] = np.clip(220 - undereye_heat * 120, 0, 255)
-            uc[..., 1] = np.clip(200 - undereye_heat * 200, 0, 255)
-            uc[..., 2] = np.clip(255 - undereye_heat * 55, 0, 255)
-            ua = (undereye_heat * HEATMAP_ALPHA_MAX).astype(np.uint8)
-            ua[~u_mask] = 0
-            overlay_rgba[u_mask, :3] = uc[u_mask].astype(np.uint8)
-            overlay_rgba[u_mask, 3] = ua[u_mask]
-            zone_mask = undereye_heat > UNDEREYE_DETECTION_THRESHOLD
-            if zone_mask.any():
-                ys, xs = np.where(zone_mask)
-                detections.append({
-                    "condition": "under_eye_bags", "type": "zone",
-                    "x1": int(xs.min()), "y1": int(ys.min()),
-                    "x2": int(xs.max()), "y2": int(ys.max()),
-                    "severity": float(np.clip(undereye_heat[zone_mask].mean(), 0, 1)),
-                })
+        zone_mask = undereye_heat > UNDEREYE_DETECTION_THRESHOLD
+        if zone_mask.any():
+            ys, xs = np.where(zone_mask)
+            detections.append({
+                "condition": "under_eye_bags", "type": "zone",
+                "x1": int(xs.min()), "y1": int(ys.min()),
+                "x2": int(xs.max()), "y2": int(ys.max()),
+                "severity": float(np.clip(undereye_heat[zone_mask].mean(), 0, 1)),
+            })
     except Exception as e:
-        print(f"WARNING: under-eye layer failed: {e}", flush=True)
+        print(f"WARNING: under-eye detection failed: {e}", flush=True)
 
-    # ── Layer 3: Acne (top) ──
+    # ── Acne layer (all conditions rendered in red) ──
     try:
         focus_left, focus_top, focus_right, focus_bottom = _get_face_focus_bounds(w, h, image)
         crop_left, crop_top = focus_left, focus_top
