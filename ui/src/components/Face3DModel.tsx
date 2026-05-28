@@ -48,8 +48,7 @@ interface Props {
   detections?: Detection[];
 }
 
-// @ts-expect-error detections is used by Task 3
-export function Face3DModel({ scores, frontPhotoUrl, detections }: Props) {
+export function Face3DModel({ scores, frontPhotoUrl }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
