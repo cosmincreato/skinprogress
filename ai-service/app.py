@@ -70,7 +70,7 @@ _clip_classifier = None
 _acne_classifier = None
 _acne_detector = None
 _face_landmarker = None
-_face_landmarker_initialized = False
+_face_landmarker_lock = threading.Lock()
 
 
 def _get_clip_classifier():
@@ -111,57 +111,62 @@ def _get_acne_detector():
 
 
 def _get_face_landmarker():
-    global _face_landmarker, _face_landmarker_initialized
-    if _face_landmarker_initialized:
+    global _face_landmarker
+    if _face_landmarker is not None:
         return _face_landmarker
+    with _face_landmarker_lock:
+        if _face_landmarker is not None:
+            return _face_landmarker
 
-    _face_landmarker_initialized = True
-
-    # Try HuggingFace Hub first, fall back to Google CDN
-    model_path = None
-    try:
-        model_path = hf_hub_download(
-            repo_id=FACE_LANDMARKER_MODEL_REPO,
-            filename=FACE_LANDMARKER_MODEL_FILE,
-        )
-    except Exception as e:
-        print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
+        # Try HuggingFace Hub first, fall back to Google CDN
+        model_path = None
         try:
-            import urllib.request
-            import tempfile
-            url = (
-                "https://storage.googleapis.com/mediapipe-models/"
-                "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+            model_path = hf_hub_download(
+                repo_id=FACE_LANDMARKER_MODEL_REPO,
+                filename=FACE_LANDMARKER_MODEL_FILE,
             )
-            cache_dir = os.path.join(tempfile.gettempdir(), "mediapipe_models")
-            os.makedirs(cache_dir, exist_ok=True)
-            model_path = os.path.join(cache_dir, "face_landmarker.task")
-            if not os.path.exists(model_path):
-                urllib.request.urlretrieve(url, model_path)
-        except Exception as e2:
-            print(f"WARNING: CDN download also failed ({e2})", flush=True)
-            _face_landmarker = None
-            return None
+        except Exception as e:
+            print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
+            try:
+                import urllib.request
+                import tempfile
+                url = (
+                    "https://storage.googleapis.com/mediapipe-models/"
+                    "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+                )
+                cache_dir = os.path.join(tempfile.gettempdir(), "mediapipe_models")
+                os.makedirs(cache_dir, exist_ok=True)
+                model_path = os.path.join(cache_dir, "face_landmarker.task")
+                if not os.path.exists(model_path):
+                    with urllib.request.urlopen(url, timeout=30) as resp:
+                        with open(model_path, "wb") as f:
+                            f.write(resp.read())
+            except Exception as e2:
+                print(f"WARNING: CDN download also failed ({e2})", flush=True)
+                return None
 
-    try:
-        from mediapipe.tasks import python as _mp_python
-        from mediapipe.tasks.python import vision as _mp_vision
-        base_options = _mp_python.BaseOptions(model_asset_path=model_path)
-        options = _mp_vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_score=0.5,
-            min_tracking_confidence=0.5,
-            output_face_blendshapes=False,
-            output_facial_transformation_matrixes=False,
-        )
-        _face_landmarker = _mp_vision.FaceLandmarker.create_from_options(options)
-    except Exception as e:
-        print(f"WARNING: FaceLandmarker init failed: {e}", flush=True)
-        _face_landmarker = None
+        try:
+            from mediapipe.tasks import python as _mp_python
+            from mediapipe.tasks.python import vision as _mp_vision
+            base_options = _mp_python.BaseOptions(model_asset_path=model_path)
+            options = _mp_vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                num_faces=1,
+                min_face_detection_confidence=0.5,
+                min_face_presence_score=0.5,
+                min_tracking_confidence=0.5,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+            )
+            _face_landmarker = _mp_vision.FaceLandmarker.create_from_options(options)
+        except Exception as e:
+            print(f"WARNING: FaceLandmarker init failed: {e}", flush=True)
 
     return _face_landmarker
+
+
+def _get_face_mesh():
+    return None
 
 
 def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
