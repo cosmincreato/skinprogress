@@ -970,8 +970,16 @@ def _build_face_focus_mask(
     image_height: int,
     image: Image.Image,
 ) -> np.ndarray:
-    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        silhouette = _build_face_silhouette_mask(image_width, image_height, pts)
+        nostril = _build_nostril_exclusion_mask(image_width, image_height, pts)
+        mask = np.clip(silhouette - nostril, 0.0, 1.0)
+        if mask.max() > 0:
+            return mask
 
+    # Fallback: Haar bbox or center ellipse
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
     bbox = _detect_face_bbox(image)
     if bbox is not None:
         x, y, w, h = bbox
@@ -982,8 +990,6 @@ def _build_face_focus_mask(
         print(
             f"DEBUG: Face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
         )
-        # Use an ellipse instead of a hard rectangle to avoid "boxy" overlays.
-        # This keeps the focus mask face-shaped even when the Haar bbox includes hair/background.
         cx = int((left + right) / 2)
         cy = int((top + bottom) / 2)
         ax = max(1, int((right - left) / 2))
@@ -995,7 +1001,6 @@ def _build_face_focus_mask(
         center_y = int(image_height * 0.42)
         radius_x = int(image_width * 0.22)
         radius_y = int(image_height * 0.30)
-
         y_indices, x_indices = np.ogrid[:image_height, :image_width]
         ellipse = (
             ((x_indices - center_x) ** 2) / max(radius_x**2, 1)

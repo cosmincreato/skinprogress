@@ -50,3 +50,24 @@ def test_silhouette_mask_no_crash_on_degenerate_pts():
     assert mask.shape == (100, 100)
     assert mask.dtype == np.float32
     assert 0.0 <= mask.min() and mask.max() <= 1.0
+
+
+def test_face_focus_mask_uses_landmarks_when_available():
+    """When _face_landmarks_xy returns pts, mask uses silhouette polygon."""
+    pts = make_realistic_pts(640, 480)
+    img = PILImage.fromarray(np.full((480, 640, 3), 128, dtype=np.uint8))
+    with patch("app._face_landmarks_xy", return_value=pts):
+        from app import _build_face_focus_mask
+        mask = _build_face_focus_mask(640, 480, img)
+    assert mask.shape == (480, 640)
+    assert mask.max() > 0
+
+
+def test_face_focus_mask_falls_back_when_no_landmarks():
+    """When _face_landmarks_xy returns None, fallback ellipse is used."""
+    img = PILImage.fromarray(np.full((480, 640, 3), 128, dtype=np.uint8))
+    with patch("app._face_landmarks_xy", return_value=None):
+        from app import _build_face_focus_mask
+        mask = _build_face_focus_mask(640, 480, img)
+    assert mask.shape == (480, 640)
+    assert mask.max() > 0
