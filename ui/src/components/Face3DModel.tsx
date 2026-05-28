@@ -3,6 +3,25 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Detection } from "./HeatmapOverlay";
 
+const CONDITION_COLORS: Record<string, [number, number, number]> = {
+  acne:           [0.863, 0.078, 0.078], // #DC1414
+  redness:        [0.902, 0.392, 0.0],   // #E66400
+  under_eye_bags: [0.392, 0.0,   0.784], // #6400C8
+};
+
+function hitTestDetection(imgX: number, imgY: number, det: Detection): boolean {
+  if (det.type === "spot") {
+    if (det.x == null || det.y == null || det.radius == null) return false;
+    return Math.hypot(imgX - det.x, imgY - det.y) < det.radius * 1.3;
+  }
+  if (det.type === "zone") {
+    if (det.x1 == null || det.y1 == null || det.x2 == null || det.y2 == null)
+      return false;
+    return imgX >= det.x1 && imgX <= det.x2 && imgY >= det.y1 && imgY <= det.y2;
+  }
+  return false;
+}
+
 const FACE_MODEL =
   "https://raw.githubusercontent.com/mrdoob/three.js/r168/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb";
 
@@ -50,7 +69,7 @@ interface Props {
   detections?: Detection[];
 }
 
-export function Face3DModel({ scores, frontPhotoUrl }: Props) {
+export function Face3DModel({ scores, frontPhotoUrl, detections }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
@@ -59,6 +78,7 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
   const acne = scores.acne ?? 0;
   const red = scores.redness ?? 0;
   const eyeS = scores.under_eye_bags ?? 0;
+  const detectionsKey = JSON.stringify(detections ?? []);
 
   // Effect 1: load original selfie, detect face skin region via YCrCb
   useEffect(() => {
@@ -328,6 +348,7 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
 
       return skinBase.clone();
     }
+    void zoneColor; // retained for Task 4 cleanup
 
     // Procedural roughness texture — simulates pore microstructure
     const roughCanvas = document.createElement("canvas");
@@ -414,39 +435,44 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
                 : 0;
 
             let r: number, g: number, b: number;
+            const blend = Math.max(0, Math.min(1, (fnz + 0.05) / 0.35)) ** 1.5;
 
-            if (region && fnz > -0.05) {
-              // Map vertex to selfie image coordinates.
-              // normX -1…+1 = left ear…right ear → maps to face horizontal span.
-              // normY 0…1 = chin…crown → maps to face vertical span (Y inverted).
-              const imgX = Math.round(region.cx + normX * region.rx);
-              const imgY = Math.round(region.cy + region.ry * (1 - 2 * normY));
-              const ix = Math.max(0, Math.min(region.W - 1, imgX));
-              const iy = Math.max(0, Math.min(region.H - 1, imgY));
-              const k = (iy * region.W + ix) * 4;
-              const pr = region.data[k];
-              const pg = region.data[k + 1];
-              const pb = region.data[k + 2];
-
-              const blend = Math.max(0, Math.min(1, (fnz + 0.05) / 0.35)) ** 1.5;
-
-              if (isSkinPixel(pr, pg, pb)) {
-                // Actual skin color from the selfie photo
-                r = skinDark.r + blend * (pr / 255 - skinDark.r);
-                g = skinDark.g + blend * (pg / 255 - skinDark.g);
-                b = skinDark.b + blend * (pb / 255 - skinDark.b);
-              } else {
-                // Hair, background, or non-skin — fall back to zone severity color
-                const col = zoneColor(normX, normY, fnz);
-                r = col.r;
-                g = col.g;
-                b = col.b;
-              }
+            if (!region || fnz < -0.05) {
+              r = skinDark.r;
+              g = skinDark.g;
+              b = skinDark.b;
             } else {
-              const col = zoneColor(normX, normY, fnz);
-              r = col.r;
-              g = col.g;
-              b = col.b;
+              const imgX = region.cx + normX * region.rx;
+              const imgY = region.cy + region.ry * (1 - 2 * normY);
+
+              let bestDet: Detection | null = null;
+              let bestSev = -1;
+              for (const det of (detections ?? [])) {
+                if (hitTestDetection(imgX, imgY, det) && det.severity > bestSev) {
+                  bestSev = det.severity;
+                  bestDet = det;
+                }
+              }
+
+              const skinMR = region.skinR / 255;
+              const skinMG = region.skinG / 255;
+              const skinMB = region.skinB / 255;
+
+              let targetR: number, targetG: number, targetB: number;
+              if (bestDet) {
+                const cc = CONDITION_COLORS[bestDet.condition] ?? [0.863, 0.078, 0.078];
+                targetR = skinMR + 0.82 * (cc[0] - skinMR);
+                targetG = skinMG + 0.82 * (cc[1] - skinMG);
+                targetB = skinMB + 0.82 * (cc[2] - skinMB);
+              } else {
+                targetR = skinMR;
+                targetG = skinMG;
+                targetB = skinMB;
+              }
+
+              r = skinDark.r + blend * (targetR - skinDark.r);
+              g = skinDark.g + blend * (targetG - skinDark.g);
+              b = skinDark.b + blend * (targetB - skinDark.b);
             }
 
             colorBuf[i * 3] = r;
@@ -499,7 +525,7 @@ export function Face3DModel({ scores, frontPhotoUrl }: Props) {
       if (mount.contains(renderer.domElement))
         mount.removeChild(renderer.domElement);
     };
-  }, [pixelVersion, acne, red, eyeS]);
+  }, [pixelVersion, detectionsKey]);
 
   return (
     <div className="space-y-1">
