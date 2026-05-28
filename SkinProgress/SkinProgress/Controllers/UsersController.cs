@@ -858,13 +858,10 @@ public class UsersController : ControllerBase
         }
 
         if (heatmapUrls.Count == 0)
-        {
-            Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle");
-            return heatmapUrls;
-        }
+            Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle; analysis scores will still be persisted");
 
-        // Persist to DB and Qdrant. These are non-critical for the current response —
-        // if they fail the heatmap URLs are still returned to the caller.
+        // Persist to DB and Qdrant — always run regardless of whether heatmaps were saved.
+        // Analysis scores must survive a page refresh even when heatmap generation fails.
         try
         {
             var acneSeverity = ExtractSeverityScore(analysisJson, "acne");
