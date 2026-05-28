@@ -887,7 +887,7 @@ def _build_face_focus_mask(
         top = max(0, int(y - h * FACE_EXPAND_Y_TOP))
         bottom = min(image_height, int(y + h + h * FACE_EXPAND_Y_BOTTOM))
         print(
-            f"DEBUG: Haar face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
+            f"DEBUG: Face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
         )
         # Use an ellipse instead of a hard rectangle to avoid "boxy" overlays.
         # This keeps the focus mask face-shaped even when the Haar bbox includes hair/background.

@@ -46,3 +46,28 @@ def test_falls_back_to_haar_when_mediapipe_returns_none():
         result = _detect_face_bbox(make_solid_image())
 
     assert result is None
+
+
+def test_degenerate_landmarks_fall_back_to_haar():
+    """All landmarks at the same point → fw=0, fh=0 → rejects MediaPipe result, falls back to Haar → None on blank image."""
+    from app import _detect_face_bbox
+
+    all_same = np.array([[50, 50]] * 10, dtype=np.int32)
+
+    with patch("app._face_landmarks_xy", return_value=all_same):
+        result = _detect_face_bbox(make_solid_image(w=300, h=300))
+
+    assert result is None  # fw=0, fh=0 < 20 → falls through to Haar → blank image → None
+
+
+def test_small_bbox_falls_back_to_haar():
+    """A 5×5 bbox from MediaPipe is too small (< 20×20) → falls back to Haar → None on blank image."""
+    from app import _detect_face_bbox
+
+    # Points spanning only 5px × 5px
+    tiny_pts = np.array([[100, 100], [105, 100], [100, 105], [105, 105]], dtype=np.int32)
+
+    with patch("app._face_landmarks_xy", return_value=tiny_pts):
+        result = _detect_face_bbox(make_solid_image(w=300, h=300))
+
+    assert result is None  # fw=5, fh=5 < 20 → falls through to Haar → None
