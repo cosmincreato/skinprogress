@@ -16,8 +16,9 @@ def test_get_face_landmarker_returns_none_when_download_fails():
     """If model download raises, _get_face_landmarker returns None (no crash)."""
     app = _reload_app()
     with patch("app.hf_hub_download", side_effect=Exception("network error")):
-        with patch("urllib.request.urlretrieve", side_effect=Exception("offline")):
-            result = app._get_face_landmarker()
+        with patch("urllib.request.urlopen", side_effect=Exception("offline")):
+            with patch("os.path.exists", return_value=False):
+                result = app._get_face_landmarker()
     assert result is None
 
 
