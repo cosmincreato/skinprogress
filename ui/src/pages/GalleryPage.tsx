@@ -1243,10 +1243,7 @@ const GalleryPage = () => {
                             </p>
                             <Face3DModel
                               scores={analysisByDate[selectedDay.date].overall_scores}
-                              frontHeatmapUrl={
-                                analysisByDate[selectedDay.date].per_angle["front"]
-                                  ?.heatmap_overlay_data_url
-                              }
+                              frontPhotoUrl={getPhotoForAngle(selectedDay.photos, "front")?.url}
                             />
                           </div>
 

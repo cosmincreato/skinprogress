@@ -1,0 +1,12 @@
+fastapi>=0.115.0
+python-dotenv>=1.0.1
+python-multipart>=0.0.9
+uvicorn[standard]>=0.30.0
+pillow>=10.4.0
+numpy>=1.26.4
+opencv-python>=4.10.0.84
+mediapipe>=0.10.21
+transformers>=4.44.2
+huggingface_hub>=0.24.6
+ultralytics>=8.3.0
+# CPU wheels for torch come from the Docker extra-index-url; locally install torch as needed.

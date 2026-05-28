@@ -65,6 +65,10 @@ By default the service uses a dedicated acne severity classifier (better than CL
   - `uniform_face` (recommended for your request): uniformly colors detected facial skin
   - `yolo_acne`: uses a YOLO acne detector for acne heatmaps (lesion-localized)
   - `patch` (fallback): uses patch-based CLIP localization (slow, less accurate)
+  - `local_regions` (recommended): fully local inference for *all* overlays:
+    - acne: YOLO detections → blobs
+    - redness: LAB a* channel on facial skin
+    - under-eye bags: landmark-based under-eye darkness
 - `ACNE_DETECT_MODEL_REPO` (default: `Tinny-Robot/acne`)
 - `ACNE_DETECT_MODEL_FILE` (default: `acne.pt`)
 - `ACNE_DETECT_CONF` (default: `0.35`) confidence threshold

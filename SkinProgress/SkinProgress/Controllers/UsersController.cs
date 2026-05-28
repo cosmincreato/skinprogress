@@ -10,6 +10,7 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SkinProgress.Controllers;
 
@@ -366,7 +367,7 @@ public class UsersController : ControllerBase
 
     [HttpDelete("selfies/today")]
     [Authorize]
-    public IActionResult DeleteTodaysSelfies()
+    public async Task<IActionResult> DeleteTodaysSelfies()
     {
         try
         {
@@ -381,38 +382,53 @@ public class UsersController : ControllerBase
                 return Unauthorized();
             }
 
-            var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            var userSelfieFolder = Path.Combine(webRootPath, "selfies", userId.ToString());
-
-            if (!Directory.Exists(userSelfieFolder))
-            {
-                return Ok(new { message = "No selfies found for today." });
-            }
-
             var today = DateTime.UtcNow.Date;
-            var todaysSelfies = Directory.GetFiles(userSelfieFolder)
-                .Select(filePath => new
-                {
-                    FilePath = filePath,
-                    UploadedAt = System.IO.File.GetLastWriteTimeUtc(filePath)
-                })
-                .Where(f => f.UploadedAt.Date == today)
-                .ToList();
+            var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 
-            int deletedCount = 0;
-            foreach (var selfie in todaysSelfies)
+            // Delete Photo DB records and their files for today
+            var todaysPhotos = await _context.Photos
+                .Where(p => p.UserId == userId && p.CaptureDate == today && p.DeletedAt == null)
+                .ToListAsync();
+
+            int deletedCount = todaysPhotos.Count;
+
+            foreach (var photo in todaysPhotos)
             {
                 try
                 {
-                    System.IO.File.Delete(selfie.FilePath);
-                    deletedCount++;
+                    var filePath = Path.Combine(webRootPath, photo.FilePath.TrimStart('/'));
+                    if (System.IO.File.Exists(filePath))
+                    {
+                        System.IO.File.Delete(filePath);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Failed to delete file {selfie.FilePath}: {ex.Message}");
-                    // Continue deleting other files even if one fails
+                    Console.WriteLine($"Failed to delete file for photo {photo.PhotoId}: {ex.Message}");
                 }
+
+                if (photo.MetadataId != Guid.Empty)
+                {
+                    var metadata = await _context.PhotoMetadatas.FirstOrDefaultAsync(m => m.MetadataId == photo.MetadataId);
+                    if (metadata != null)
+                    {
+                        _context.PhotoMetadatas.Remove(metadata);
+                    }
+                }
+
+                _context.Photos.Remove(photo);
             }
+
+            // Delete the SelfieCapture session for today so the next upload starts fresh
+            var todaysCapture = await _context.SelfieCaptures
+                .FirstOrDefaultAsync(s => s.UserId == userId && s.CaptureDate == today && s.DeletedAt == null);
+
+            if (todaysCapture != null)
+            {
+                _context.SelfieCaptures.Remove(todaysCapture);
+            }
+
+            await _context.SaveChangesAsync();
 
             return Ok(new { message = $"Deleted {deletedCount} selfie(s) from today." });
         }
@@ -564,28 +580,22 @@ public class UsersController : ControllerBase
 
     [HttpGet("{id}/selfies")]
     [Authorize]
-    public IActionResult GetSelfies(Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    public async Task<IActionResult> GetSelfies(Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        var userSelfieFolder = Path.Combine(webRootPath, "selfies", id.ToString());
+        // Query selfies from database instead of scanning file system
+        var photos = await _context.Photos
+            .Where(p => p.UserId == id && p.DeletedAt == null)
+            .OrderByDescending(p => p.CaptureDate)
+            .ThenByDescending(p => p.CreatedAt)
+            .ToListAsync();
 
-        if (!Directory.Exists(userSelfieFolder))
+        if (!photos.Any())
         {
             return Ok(new { selfies = new List<object>(), totalPages = 0 });
         }
 
-        var selfieFiles = Directory.GetFiles(userSelfieFolder)
-            .Select(filePath => new
-            {
-                FileName = Path.GetFileName(filePath),
-                UploadedAt = System.IO.File.GetLastWriteTimeUtc(filePath),
-                Angle = TryExtractAngle(Path.GetFileName(filePath))
-            })
-            .OrderByDescending(f => f.UploadedAt)
-            .ToList();
-
-        var groupedByDay = selfieFiles
-            .GroupBy(f => f.UploadedAt.Date)
+        var groupedByDay = photos
+            .GroupBy(p => p.CaptureDate.Date)
             .OrderByDescending(g => g.Key)
             .ToList();
 
@@ -597,18 +607,18 @@ public class UsersController : ControllerBase
             .Take(pageSize)
             .Select(dayGroup =>
             {
-                var photos = dayGroup
-                    .OrderBy(p => GetAngleSortOrder(p.Angle))
-                    .ThenBy(p => p.UploadedAt)
-                    .Select(f => new
+                var photos_by_angle = dayGroup
+                    .OrderBy(p => GetAngleSortOrder(p.ViewType))
+                    .ThenByDescending(p => p.CreatedAt)
+                    .Select(p => new
                     {
-                        url = GetFullUrl($"/selfies/{id}/{f.FileName}"),
-                        uploadedAt = f.UploadedAt,
-                        angle = f.Angle
+                        url = GetFullUrl(p.FilePath),
+                        uploadedAt = p.CreatedAt,
+                        angle = p.ViewType
                     })
                     .ToList();
 
-                var dayAngles = photos
+                var dayAngles = photos_by_angle
                     .Where(p => !string.IsNullOrWhiteSpace(p.angle))
                     .Select(p => p.angle!)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -616,7 +626,7 @@ public class UsersController : ControllerBase
                 return new
                 {
                     date = dayGroup.Key,
-                    photos,
+                    photos = photos_by_angle,
                     isComplete = RequiredSelfieAngles.All(a => dayAngles.Contains(a))
                 };
             })
@@ -642,31 +652,28 @@ public class UsersController : ControllerBase
             return BadRequest(new { message = "Date must be in yyyy-MM-dd format." });
         }
 
-        var targetDate = parsedDate.Date;
-        var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        var userSelfieFolder = Path.Combine(webRootPath, "selfies", id.ToString());
+        var targetDate = DateTime.SpecifyKind(parsedDate.Date, DateTimeKind.Utc);
+        
+        // Query photos from database for the target date
+        var photosForDate = await _context.Photos
+            .Where(p => p.UserId == id && p.CaptureDate == targetDate && p.DeletedAt == null)
+            .ToListAsync();
 
-        if (!Directory.Exists(userSelfieFolder))
+        if (!photosForDate.Any())
         {
-            return NotFound(new { message = "No selfies found for this user." });
+            return NotFound(new { message = "No selfies found for this date." });
         }
 
-        var filesByAngle = Directory.GetFiles(userSelfieFolder)
-            .Select(filePath => new
-            {
-                FilePath = filePath,
-                UploadedAt = System.IO.File.GetLastWriteTimeUtc(filePath),
-                Angle = TryExtractAngle(Path.GetFileName(filePath))
-            })
-            .Where(f => f.UploadedAt.Date == targetDate && !string.IsNullOrWhiteSpace(f.Angle))
-            .GroupBy(f => f.Angle!, StringComparer.OrdinalIgnoreCase)
+        // Group by ViewType and get the latest of each angle
+        var photosByAngle = photosForDate
+            .GroupBy(p => p.ViewType!.ToLower(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 g => g.Key,
-                g => g.OrderByDescending(x => x.UploadedAt).First(),
+                g => g.OrderByDescending(p => p.CreatedAt).First(),
                 StringComparer.OrdinalIgnoreCase
             );
 
-        if (!RequiredSelfieAngles.All(angle => filesByAngle.ContainsKey(angle)))
+        if (!RequiredSelfieAngles.All(angle => photosByAngle.ContainsKey(angle)))
         {
             return BadRequest(new { message = "This set is incomplete. Front, left, and right photos are required." });
         }
@@ -674,12 +681,26 @@ public class UsersController : ControllerBase
         var client = _httpClientFactory.CreateClient("AiAnalyzer");
 
         using var content = new MultipartFormDataContent();
+        var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        
         foreach (var angle in RequiredSelfieAngles)
         {
-            var fileStream = new FileStream(filesByAngle[angle].FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var photo = photosByAngle[angle];
+            var filePath = Path.Combine(webRootPath, photo.FilePath.TrimStart('/'));
+            
+            if (!System.IO.File.Exists(filePath))
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new
+                {
+                    message = $"Photo file not found for {angle} angle.",
+                    filePath = filePath
+                });
+            }
+
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             var streamContent = new StreamContent(fileStream);
-            streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            content.Add(streamContent, angle, Path.GetFileName(filesByAngle[angle].FilePath));
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+            content.Add(streamContent, angle, Path.GetFileName(filePath));
         }
 
         content.Add(new StringContent(id.ToString()), "user_id");
@@ -712,15 +733,21 @@ public class UsersController : ControllerBase
 
         try
         {
-            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            // Use JsonNode end-to-end. Returning JsonElement is fragile because it references a JsonDocument
+            // that can be collected before ASP.NET serializes the response, causing ObjectDisposedException.
+            var responseNode = JsonNode.Parse(body) as JsonObject;
+            if (responseNode is null)
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = "AI analysis returned an invalid response." });
+            }
 
             Console.WriteLine($"AnalyzeSelfieSet - Response from AI service: {body}");
-            Console.WriteLine($"AnalyzeSelfieSet - Parsed JSON element: {json}");
+            Console.WriteLine($"AnalyzeSelfieSet - Parsed JSON node: {responseNode}");
 
             // Check if overall_scores exists
-            if (json.TryGetProperty("overall_scores", out var scoresElement))
+            if (responseNode["overall_scores"] is not null)
             {
-                Console.WriteLine($"AnalyzeSelfieSet - overall_scores found: {scoresElement}");
+                Console.WriteLine($"AnalyzeSelfieSet - overall_scores found: {responseNode["overall_scores"]}");
             }
             else
             {
@@ -728,9 +755,10 @@ public class UsersController : ControllerBase
             }
 
             // Save heatmap to database
+            Dictionary<string, string> savedHeatmapUrls = new(StringComparer.OrdinalIgnoreCase);
             try
             {
-                await SaveAnalysisHeatmapAsync(json, id, targetDate);
+                savedHeatmapUrls = await SaveAnalysisHeatmapAsync(responseNode, id, targetDate);
             }
             catch (Exception ex)
             {
@@ -739,7 +767,33 @@ public class UsersController : ControllerBase
                 Console.WriteLine($"Error saving heatmap stack trace: {ex.StackTrace}");
             }
 
-            return Ok(json);
+            // Avoid returning large base64-encoded PNGs to the UI (can cause rendering/memory issues).
+            // Always strip base64 payloads from the response. If we saved heatmaps to disk,
+            // replace them with file URLs; otherwise set them to null so the UI won't choke.
+            if (responseNode?["per_angle"] is JsonObject perAngleNode)
+            {
+                foreach (var angle in new[] { "front", "left", "right" })
+                {
+                    if (perAngleNode[angle] is not JsonObject angleNode)
+                        continue;
+
+                    if (savedHeatmapUrls.TryGetValue(angle, out var relativeUrl))
+                    {
+                        var fullUrl = GetFullUrl(relativeUrl);
+                        angleNode["heatmap_overlay_data_url"] = fullUrl;
+                        Console.WriteLine($"AnalyzeSelfieSet - Set {angle} heatmap URL: {fullUrl}");
+                    }
+                    else
+                    {
+                        angleNode["heatmap_overlay_data_url"] = null;
+                        Console.WriteLine($"AnalyzeSelfieSet - No heatmap URL found for {angle}");
+                    }
+                }
+                Console.WriteLine($"AnalyzeSelfieSet - Final response per_angle: {perAngleNode.ToJsonString()}");
+                return Ok(responseNode);
+            }
+
+            return Ok(responseNode);
         }
         catch (Exception ex)
         {
@@ -752,84 +806,71 @@ public class UsersController : ControllerBase
     /// Saves the heatmap overlay from AI analysis to database.
     /// Extracts heatmap data URL from front angle, saves as PNG file, and creates AnalysisResult record.
     /// </summary>
-    private async Task SaveAnalysisHeatmapAsync(JsonElement analysisJson, Guid userId, DateTime analysisDate)
+    private async Task<Dictionary<string, string>> SaveAnalysisHeatmapAsync(JsonObject analysisJson, Guid userId, DateTime analysisDate)
     {
+        // Extract per_angle data
+        if (analysisJson["per_angle"] is not JsonObject perAngleObj)
+        {
+            Console.WriteLine("SaveAnalysisHeatmapAsync - No per_angle found");
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Save heatmap files and collect their relative URLs.
+        // This is the primary goal — always return these even if the DB insert later fails.
+        var heatmapUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            // Log full response for debugging
-            Console.WriteLine($"SaveAnalysisHeatmapAsync - Full response: {analysisJson}");
-
-            // Extract per_angle data
-            if (!analysisJson.TryGetProperty("per_angle", out var perAngleElement))
-            {
-                Console.WriteLine("SaveAnalysisHeatmapAsync - No per_angle found");
-                return;
-            }
-
-            var perAngle = perAngleElement.Deserialize<Dictionary<string, JsonElement>>();
-            if (perAngle == null)
-            {
-                Console.WriteLine("SaveAnalysisHeatmapAsync - perAngle is null");
-                return;
-            }
-
-            // Create heatmap directory
             var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
             var heatmapDir = Path.Combine(webRootPath, "heatmaps", userId.ToString());
             Directory.CreateDirectory(heatmapDir);
 
-            // Save heatmaps for each angle (front, left, right)
-            var heatmapUrls = new Dictionary<string, string>();
             foreach (var angle in new[] { "front", "left", "right" })
             {
-                if (!perAngle.ContainsKey(angle))
+                if (perAngleObj[angle] is not JsonObject angleData)
                 {
                     Console.WriteLine($"SaveAnalysisHeatmapAsync - No {angle} angle data");
                     continue;
                 }
 
-                var angleData = perAngle[angle];
-                if (!angleData.TryGetProperty("heatmap_overlay_data_url", out var heatmapElement))
-                {
-                    Console.WriteLine($"SaveAnalysisHeatmapAsync - No heatmap_overlay_data_url in {angle}");
-                    continue;
-                }
-
-                var heatmapDataUrl = heatmapElement.GetString();
+                var heatmapDataUrl = angleData["heatmap_overlay_data_url"]?.GetValue<string>();
                 if (string.IsNullOrEmpty(heatmapDataUrl) || !heatmapDataUrl.StartsWith("data:image/png;base64,"))
                 {
                     Console.WriteLine($"SaveAnalysisHeatmapAsync - Heatmap data URL is invalid or empty for {angle}");
                     continue;
                 }
 
-                // Extract base64 data
                 var base64Data = heatmapDataUrl.Substring("data:image/png;base64,".Length);
                 var imageBytes = Convert.FromBase64String(base64Data);
 
                 var heatmapFileName = $"{analysisDate:yyyy-MM-dd}-{angle}.png";
                 var heatmapFilePath = Path.Combine(heatmapDir, heatmapFileName);
 
-                // Save PNG file
                 await System.IO.File.WriteAllBytesAsync(heatmapFilePath, imageBytes);
                 Console.WriteLine($"SaveAnalysisHeatmapAsync - Saved {angle} heatmap to {heatmapFilePath}");
 
                 heatmapUrls[angle] = $"/heatmaps/{userId}/{heatmapFileName}";
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - Error saving heatmap files: {ex.Message}");
+            return heatmapUrls; // return whatever was saved before the error
+        }
 
-            if (heatmapUrls.Count == 0)
-            {
-                Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle");
-                return;
-            }
+        if (heatmapUrls.Count == 0)
+        {
+            Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle");
+            return heatmapUrls;
+        }
 
-            // Extract severity scores for AnalysisResult
+        // Persist to DB and Qdrant. These are non-critical for the current response —
+        // if they fail the heatmap URLs are still returned to the caller.
+        try
+        {
             var acneSeverity = ExtractSeverityScore(analysisJson, "acne");
             var rednessSeverity = ExtractSeverityScore(analysisJson, "redness");
             var underEyeBagsSeverity = ExtractSeverityScore(analysisJson, "under_eye_bags");
 
-            Console.WriteLine($"SaveAnalysisHeatmapAsync - Extracted scores: acne={acneSeverity}, redness={rednessSeverity}, underEyeBags={underEyeBagsSeverity}");
-
-            // Create AnalysisResult record
             var analysisResult = new AnalysisResult
             {
                 Id = Guid.NewGuid(),
@@ -840,72 +881,57 @@ public class UsersController : ControllerBase
                 RednessSeverity = (int?)Math.Round(rednessSeverity * 10),
                 UnderEyeBagsSeverity = (int?)Math.Round(underEyeBagsSeverity * 10),
                 Status = "Completed",
-                HeatmapImageUrl = heatmapUrls.ContainsKey("front") ? heatmapUrls["front"] : null,
-                HeatmapFrontUrl = heatmapUrls.ContainsKey("front") ? heatmapUrls["front"] : null,
-                HeatmapLeftUrl = heatmapUrls.ContainsKey("left") ? heatmapUrls["left"] : null,
-                HeatmapRightUrl = heatmapUrls.ContainsKey("right") ? heatmapUrls["right"] : null,
+                HeatmapImageUrl = heatmapUrls.GetValueOrDefault("front"),
+                HeatmapFrontUrl = heatmapUrls.GetValueOrDefault("front"),
+                HeatmapLeftUrl = heatmapUrls.GetValueOrDefault("left"),
+                HeatmapRightUrl = heatmapUrls.GetValueOrDefault("right"),
                 CreatedAt = DateTime.UtcNow,
             };
-
-            Console.WriteLine($"SaveAnalysisHeatmapAsync - Saved AnalysisResult: AcneSeverity={analysisResult.AcneSeverity}, RednessSeverity={analysisResult.RednessSeverity}, UnderEyeBagsSeverity={analysisResult.UnderEyeBagsSeverity}");
-            Console.WriteLine($"SaveAnalysisHeatmapAsync - Heatmap URLs: Front={analysisResult.HeatmapFrontUrl}, Left={analysisResult.HeatmapLeftUrl}, Right={analysisResult.HeatmapRightUrl}");
 
             _context.AnalysisResults.Add(analysisResult);
             await _context.SaveChangesAsync();
 
-            // Store analysis in Qdrant for RAG pipeline
             try
             {
                 await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
 
-                // Store analysis scores as activity event in Qdrant
                 var scoreEventData = new Dictionary<string, string>
                 {
-                    { "acne_score", (analysisResult.AcneSeverity?.ToString() ?? "0") },
-                    { "redness_score", (analysisResult.RednessSeverity?.ToString() ?? "0") },
-                    { "under_eye_bags_score", (analysisResult.UnderEyeBagsSeverity?.ToString() ?? "0") },
+                    { "acne_score", analysisResult.AcneSeverity?.ToString() ?? "0" },
+                    { "redness_score", analysisResult.RednessSeverity?.ToString() ?? "0" },
+                    { "under_eye_bags_score", analysisResult.UnderEyeBagsSeverity?.ToString() ?? "0" },
                     { "overall_score", (((analysisResult.AcneSeverity ?? 0) + (analysisResult.RednessSeverity ?? 0) + (analysisResult.UnderEyeBagsSeverity ?? 0)) / 3.0).ToString() }
                 };
                 await _qdrantService.StoreUserActivityAsync(userId.ToString(), "score_update", scoreEventData);
-                
-                // Generate personalized recommendations based on analysis history
+
                 var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);
                 Console.WriteLine($"Generated {recommendations.Count} recommendations for user {userId}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Qdrant storage error (non-blocking): {ex.Message}");
-                // Don't throw - Qdrant failure shouldn't block analysis workflow
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"SaveAnalysisHeatmapAsync error: {ex.Message}");
-            throw;
+            Console.WriteLine($"SaveAnalysisHeatmapAsync - DB persist failed (non-blocking): {ex.Message}");
         }
+
+        return heatmapUrls;
     }
 
     /// <summary>
     /// Extracts severity score (0-1) from overall_scores in analysis response.
     /// </summary>
-    private static double ExtractSeverityScore(JsonElement analysisJson, string key)
+    private static double ExtractSeverityScore(JsonObject analysisJson, string key)
     {
         try
         {
-            if (analysisJson.TryGetProperty("overall_scores", out var scoresElement))
+            if (analysisJson["overall_scores"] is JsonObject scoresObj)
             {
-                Console.WriteLine($"ExtractSeverityScore - Extracting key '{key}' from: {scoresElement.GetRawText()}");
-                var scores = scoresElement.Deserialize<Dictionary<string, double>>();
-                if (scores != null)
-                {
-                    Console.WriteLine($"ExtractSeverityScore - Available keys in overall_scores: {string.Join(", ", scores.Keys)}");
-                    if (scores.TryGetValue(key, out var score))
-                    {
-                        Console.WriteLine($"ExtractSeverityScore - Found {key}={score}");
-                        return Math.Clamp(score, 0.0, 1.0);
-                    }
-                    Console.WriteLine($"ExtractSeverityScore - Key '{key}' not found in overall_scores");
-                }
+                var raw = scoresObj[key]?.GetValue<double?>() ?? 0.0;
+                Console.WriteLine($"ExtractSeverityScore - Found {key}={raw}");
+                return Math.Clamp(raw, 0.0, 1.0);
             }
         }
         catch (Exception ex)
@@ -986,29 +1012,30 @@ public class UsersController : ControllerBase
             return Forbid();
         }
 
-        var analyses = await _context.AnalysisResults
+        var rawAnalyses = await _context.AnalysisResults
             .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
             .OrderByDescending(ar => ar.Timestamp)
-            .Select(ar => new
-            {
-                date = ar.Timestamp.ToString("yyyy-MM-dd"),
-                acneSeverity = ar.AcneSeverity,
-                rednessSeverity = ar.RednessSeverity,
-                underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
-                inflammationSeverity = ar.InflammationSeverity,
-                foreheadSeverity = ar.ForeheadSeverity,
-                leftCheekSeverity = ar.LeftCheekSeverity,
-                rightCheekSeverity = ar.RightCheekSeverity,
-                chinSeverity = ar.ChinSeverity,
-                noseSeverity = ar.NoseSeverity,
-                heatmapImageUrl = ar.HeatmapImageUrl,
-                heatmapFrontUrl = ar.HeatmapFrontUrl,
-                heatmapLeftUrl = ar.HeatmapLeftUrl,
-                heatmapRightUrl = ar.HeatmapRightUrl,
-                timestamp = ar.Timestamp,
-                status = ar.Status
-            })
             .ToListAsync();
+
+        var analyses = rawAnalyses.Select(ar => new
+        {
+            date = ar.Timestamp.ToString("yyyy-MM-dd"),
+            acneSeverity = ar.AcneSeverity,
+            rednessSeverity = ar.RednessSeverity,
+            underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
+            inflammationSeverity = ar.InflammationSeverity,
+            foreheadSeverity = ar.ForeheadSeverity,
+            leftCheekSeverity = ar.LeftCheekSeverity,
+            rightCheekSeverity = ar.RightCheekSeverity,
+            chinSeverity = ar.ChinSeverity,
+            noseSeverity = ar.NoseSeverity,
+            heatmapImageUrl = GetFullUrl(ar.HeatmapImageUrl),
+            heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
+            heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
+            heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
+            timestamp = ar.Timestamp,
+            status = ar.Status
+        }).ToList();
 
         Console.WriteLine($"GetAllAnalyses for user {id}: Found {analyses.Count} completed analyses");
         foreach (var a in analyses)

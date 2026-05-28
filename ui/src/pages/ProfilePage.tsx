@@ -133,7 +133,13 @@ const formatAngleLabel = (angle: SelfieAngle) => {
   return "Front";
 };
 
-const dateKey = (dateStr: string) => new Date(dateStr).toDateString();
+// Converts any date string to a UTC "YYYY-MM-DD" key, matching the backend's
+// CaptureDate which is always stored as DateTime.UtcNow.Date.
+const toUtcDayKey = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toISOString().split("T")[0];
+};
 
 const normalizeSelfieDays = (items: unknown): SelfieDay[] => {
   if (!Array.isArray(items)) return [];
@@ -152,12 +158,12 @@ const normalizeSelfieDays = (items: unknown): SelfieDay[] => {
       const normalizedPhotos = rawItem.photos.filter(
         (photo) => !!photo?.url && !!photo?.uploadedAt,
       );
-      dayMap.set(dateKey(dayDate), normalizedPhotos);
+      dayMap.set(toUtcDayKey(dayDate), normalizedPhotos);
       continue;
     }
 
     if (rawItem?.url && rawItem?.uploadedAt) {
-      const bucketDate = dateKey(rawItem.uploadedAt);
+      const bucketDate = toUtcDayKey(rawItem.uploadedAt);
       const currentPhotos = dayMap.get(bucketDate) ?? [];
       currentPhotos.push({
         url: rawItem.url,
@@ -192,10 +198,10 @@ const ProfilePage = () => {
   const [selfie, setSelfie] = useState<string | null>(null);
   const [selfieDays, setSelfieDays] = useState<SelfieDay[]>([]);
   const [totalSets, setTotalSets] = useState(0);
-  const [hasTakenDailySelfie, setHasTakenDailySelfie] = useState(false);
   const [completedAnglesToday, setCompletedAnglesToday] = useState<
     SelfieAngle[]
   >([]);
+  const hasTakenDailySelfie = completedAnglesToday.length === REQUIRED_ANGLES.length;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -311,20 +317,24 @@ const ProfilePage = () => {
       setSelfieDays(days);
       setTotalSets(data?.totalPages ?? 0);
 
-      const today = new Date().toDateString();
-      const todayEntry = days.find((day) => dateKey(day.date) === today);
+      // Use UTC date to match the backend's CaptureDate (DateTime.UtcNow.Date)
+      const todayUTC = new Date().toISOString().split("T")[0];
+      const todayEntry = days.find((day) => day.date === todayUTC);
 
-      const todayAngles = (
-        todayEntry?.photos
+      // Only update completed angles if today's entry is found from the server.
+      // If not found (e.g. the UTC date doesn't match local date at midnight),
+      // preserve the current state rather than resetting to empty.
+      if (todayEntry !== undefined) {
+        const todayAngles = todayEntry.photos
           .map((photo) => photo.angle)
           .filter(
             (angle): angle is SelfieAngle =>
               angle === "front" || angle === "left" || angle === "right",
-          ) ?? []
-      ).filter((angle, index, arr) => arr.indexOf(angle) === index);
+          )
+          .filter((angle, index, arr) => arr.indexOf(angle) === index);
 
-      setCompletedAnglesToday(todayAngles);
-      setHasTakenDailySelfie(todayAngles.length === REQUIRED_ANGLES.length);
+        setCompletedAnglesToday(todayAngles);
+      }
     } catch (error) {
       console.error("Failed to fetch selfies", error);
     }
@@ -507,9 +517,18 @@ const ProfilePage = () => {
       });
 
       if (response.ok) {
-        await fetchSelfieDays();
+        // Optimistically advance the angle tracker immediately — don't rely solely
+        // on fetchSelfieDays, which can miss today's photos when the UTC date and
+        // local date differ (e.g. UTC+3 users between midnight and 3 AM).
+        setCompletedAnglesToday((prev) =>
+          nextRequiredAngle && !prev.includes(nextRequiredAngle)
+            ? [...prev, nextRequiredAngle]
+            : prev,
+        );
         selfieCameraRef.current?.resetCapture();
         setSelfie(null);
+        // Refresh display data in the background (non-critical)
+        fetchSelfieDays().catch(() => {});
       } else {
         const errorData = await response.json().catch(() => null);
         setUploadError(
@@ -533,7 +552,6 @@ const ProfilePage = () => {
       console.log("Selfies deleted successfully, fetching updated data...");
       await fetchSelfieDays();
       console.log("Fetch complete, resetting UI state...");
-      setHasTakenDailySelfie(false);
       setCompletedAnglesToday([]);
       setSelfie(null);
       selfieCameraRef.current?.resetCapture();
@@ -850,12 +868,13 @@ const ProfilePage = () => {
               <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-on-surface font-semibold">
-                    {new Date(latestSelfieDay.date).toLocaleDateString(
+                    {new Date(latestSelfieDay.date + "T00:00:00Z").toLocaleDateString(
                       "default",
                       {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
+                        timeZone: "UTC",
                       },
                     )}
                   </p>

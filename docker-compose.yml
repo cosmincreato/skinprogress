@@ -45,7 +45,7 @@ services:
   #   volumes:
   #     - hf_cache:/tmp/huggingface
   #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${AI_SERVICE_PORT}/health')"]
+  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
   #     interval: 30s
   #     timeout: 10s
   #     retries: 5
