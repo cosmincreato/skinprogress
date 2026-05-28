@@ -294,6 +294,7 @@ def _startup_preload_models():
         try:
             _get_clip_classifier()
             _get_acne_classifier()
+            _get_face_landmarker()
             if HEATMAP_BACKEND == "yolo_acne":
                 _get_acne_detector()
         except Exception:
