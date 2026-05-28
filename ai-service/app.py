@@ -961,9 +961,10 @@ def _safe_build_heatmap_overlay(image: Image.Image, condition_key: str) -> str |
             result = _build_acne_yolo_heatmap_overlay(image)
             if result is None:
                 print(
-                    f"WARNING: _build_acne_yolo_heatmap_overlay returned None",
+                    "WARNING: yolo_acne returned None, returning original photo",
                     flush=True,
                 )
+                return _to_png_data_url(image)
             return result
         return _build_heatmap_overlay(image, condition_key)
     except Exception as e:
