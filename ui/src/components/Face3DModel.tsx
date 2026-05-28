@@ -23,24 +23,32 @@ function scoreToHeat(s: number): THREE.Color {
   );
 }
 
-interface PixelData {
+// YCrCb skin detection — same thresholds as the Python backend's _build_skin_mask
+function isSkinPixel(r: number, g: number, b: number): boolean {
+  const Y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const Cr = 128 + (r - Y) * 0.713;
+  const Cb = 128 + (b - Y) * 0.564;
+  return Y > 40 && Y < 240 && Cr > 130 && Cr < 170 && Cb > 80 && Cb < 135;
+}
+
+interface FaceRegion {
   data: Uint8ClampedArray;
   W: number;
   H: number;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
+  cx: number; // face centroid x in image pixels
+  cy: number; // face centroid y in image pixels
+  rx: number; // face half-width
+  ry: number; // face half-height
 }
 
 interface Props {
   scores: Record<string, number>;
-  frontHeatmapUrl?: string | null;
+  frontPhotoUrl?: string | null;
 }
 
-export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
+export function Face3DModel({ scores, frontPhotoUrl }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const pixelRef = useRef<PixelData | null>(null);
+  const regionRef = useRef<FaceRegion | null>(null);
   const [pixelVersion, setPixelVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -48,65 +56,105 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
   const red = scores.redness ?? 0;
   const eyeS = scores.under_eye_bags ?? 0;
 
-  // Effect 1: decode heatmap image into raw pixel data
+  // Effect 1: load original selfie, detect face skin region via YCrCb
   useEffect(() => {
-    pixelRef.current = null;
-    if (!frontHeatmapUrl) {
+    regionRef.current = null;
+    if (!frontPhotoUrl) {
       setPixelVersion((v) => v + 1);
       return;
     }
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      const MAX = 600;
-      const s = Math.min(
-        1,
-        MAX / Math.max(img.naturalWidth, img.naturalHeight),
-      );
-      const W = Math.floor(img.naturalWidth * s);
-      const H = Math.floor(img.naturalHeight * s);
-      const c = document.createElement("canvas");
-      c.width = W;
-      c.height = H;
-      const ctx = c.getContext("2d");
-      if (!ctx) {
-        setPixelVersion((v) => v + 1);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, W, H);
-      const data = ctx.getImageData(0, 0, W, H).data;
+      try {
+        const MAX = 600;
+        const scale = Math.min(
+          1,
+          MAX / Math.max(img.naturalWidth, img.naturalHeight),
+        );
+        const W = Math.floor(img.naturalWidth * scale);
+        const H = Math.floor(img.naturalHeight * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          setPixelVersion((v) => v + 1);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, W, H);
+        const { data } = ctx.getImageData(0, 0, W, H);
 
-      const isHeat = (r: number, g: number, b: number) =>
-        (g - r > 40 && g > 100) ||
-        (r - b > 90 && g - b > 60 && b < 130) ||
-        (r - g > 70 && r > 140);
+        // Pass 1: rough centroid of all skin pixels
+        let skinCount = 0,
+          sumX = 0,
+          sumY = 0;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
+              sumX += x;
+              sumY += y;
+              skinCount++;
+            }
+          }
+        }
+        if (skinCount < 400) {
+          setPixelVersion((v) => v + 1);
+          return;
+        }
+        const roughCx = sumX / skinCount;
+        const roughCy = sumY / skinCount;
 
-      let minX = W,
-        maxX = 0,
-        minY = H,
-        maxY = 0,
-        n = 0;
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
-          const i = (y * W + x) * 4;
-          if (isHeat(data[i], data[i + 1], data[i + 2])) {
+        // Pass 2: keep only face skin pixels (within 45% of min dimension from centroid)
+        // This excludes neck, shoulders, background, and skin-colored non-face areas.
+        const maxRadius = Math.min(W, H) * 0.45;
+        let faceCount = 0,
+          faceSumX = 0,
+          faceSumY = 0;
+        let minX = W,
+          maxX = 0,
+          minY = H,
+          maxY = 0;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            if (!isSkinPixel(data[i], data[i + 1], data[i + 2])) continue;
+            if (Math.hypot(x - roughCx, y - roughCy) > maxRadius) continue;
+            faceSumX += x;
+            faceSumY += y;
+            faceCount++;
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
-            n++;
           }
         }
-      }
-      if (n >= 200 && maxX > minX && maxY > minY) {
-        pixelRef.current = { data, W, H, minX, maxX, minY, maxY };
+
+        if (faceCount < 200 || maxX <= minX || maxY <= minY) {
+          setPixelVersion((v) => v + 1);
+          return;
+        }
+
+        regionRef.current = {
+          data,
+          W,
+          H,
+          cx: faceSumX / faceCount,
+          cy: faceSumY / faceCount,
+          rx: (maxX - minX) / 2,
+          ry: (maxY - minY) / 2,
+        };
+      } catch (err) {
+        console.warn("Face3DModel: skin detection failed", err);
       }
       setPixelVersion((v) => v + 1);
     };
     img.onerror = () => setPixelVersion((v) => v + 1);
-    img.src = frontHeatmapUrl;
-  }, [frontHeatmapUrl]);
+    img.src = frontPhotoUrl;
+  }, [frontPhotoUrl]);
 
-  // Effect 2: Three.js scene — load real photogrammetric head, apply heatmap colors
+  // Effect 2: Three.js scene — color 3D face with real skin tones from the selfie
   useEffect(() => {
     if (!mountRef.current) return;
     const mount = mountRef.current;
@@ -197,7 +245,7 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
     };
     loop();
 
-    // Zone colors from scores (fallback when no heatmap pixel data)
+    // Zone colors derived from scores — used for back-of-head and non-skin vertices
     const zc = {
       forehead: scoreToHeat(acne * 0.9),
       leftCheek: scoreToHeat(red),
@@ -286,7 +334,6 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
     }
     const roughTex = new THREE.CanvasTexture(roughCanvas);
 
-    // Load the Lee Perry-Smith photogrammetric head scan
     const loader = new GLTFLoader();
     loader.load(
       FACE_MODEL,
@@ -295,7 +342,6 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
 
         headGroup = gltf.scene;
 
-        // Scale model to ~2.5 world units tall and center at origin
         const bbox = new THREE.Box3().setFromObject(headGroup);
         const size = bbox.getSize(new THREE.Vector3());
         const center = bbox.getCenter(new THREE.Vector3());
@@ -307,13 +353,12 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
           -center.z * modelScale,
         );
 
-        // Compute world bounding box after scaling for coordinate normalization
         headGroup.updateMatrixWorld(true);
         const worldBbox = new THREE.Box3().setFromObject(headGroup);
         const wMin = worldBbox.min.clone();
         const wSize = worldBbox.getSize(new THREE.Vector3());
 
-        const pix = pixelRef.current;
+        const region = regionRef.current;
 
         headGroup.traverse((child: THREE.Object3D) => {
           if (!(child instanceof THREE.Mesh)) return;
@@ -331,11 +376,9 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
               ly = posAttr.getY(i),
               lz = posAttr.getZ(i);
 
-            // Transform local position → world position
             const wx = wm[0] * lx + wm[4] * ly + wm[8] * lz + wm[12];
             const wy = wm[1] * lx + wm[5] * ly + wm[9] * lz + wm[13];
 
-            // Transform local normal → world normal (rotation only)
             const lnx = normAttr?.getX(i) ?? 0;
             const lny = normAttr?.getY(i) ?? 0;
             const lnz = normAttr?.getZ(i) ?? 1;
@@ -345,7 +388,6 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
             const wnLen = Math.hypot(wnx, wny, wnz) || 1;
             const fnz = wnz / wnLen; // +1 = facing camera, -1 = back of head
 
-            // Normalized face-space coordinates
             const normY =
               wSize.y > 0.001
                 ? Math.max(0, Math.min(1, (wy - wMin.y) / wSize.y))
@@ -357,27 +399,33 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
 
             let r: number, g: number, b: number;
 
-            if (pix && fnz > -0.05) {
-              // Sample heatmap pixel at this vertex's face-space position.
-              // normY range [0.12, 0.87] maps to face region within the image bbox.
-              const ix = Math.round(
-                pix.minX + ((normX + 1) / 2) * (pix.maxX - pix.minX),
-              );
-              const iy = Math.round(
-                pix.minY +
-                  (1 - (normY - 0.12) / 0.75) * (pix.maxY - pix.minY),
-              );
-              const cx = Math.max(0, Math.min(pix.W - 1, ix));
-              const cy = Math.max(0, Math.min(pix.H - 1, iy));
-              const k = (cy * pix.W + cx) * 4;
-              const ir = pix.data[k] / 255;
-              const ig = pix.data[k + 1] / 255;
-              const ib = pix.data[k + 2] / 255;
-              // Fade to dark on profile/back vertices
+            if (region && fnz > -0.05) {
+              // Map vertex to selfie image coordinates.
+              // normX -1…+1 = left ear…right ear → maps to face horizontal span.
+              // normY 0…1 = chin…crown → maps to face vertical span (Y inverted).
+              const imgX = Math.round(region.cx + normX * region.rx);
+              const imgY = Math.round(region.cy + region.ry * (1 - 2 * normY));
+              const ix = Math.max(0, Math.min(region.W - 1, imgX));
+              const iy = Math.max(0, Math.min(region.H - 1, imgY));
+              const k = (iy * region.W + ix) * 4;
+              const pr = region.data[k];
+              const pg = region.data[k + 1];
+              const pb = region.data[k + 2];
+
               const blend = Math.max(0, Math.min(1, (fnz + 0.05) / 0.35)) ** 1.5;
-              r = skinDark.r + blend * (ir - skinDark.r);
-              g = skinDark.g + blend * (ig - skinDark.g);
-              b = skinDark.b + blend * (ib - skinDark.b);
+
+              if (isSkinPixel(pr, pg, pb)) {
+                // Actual skin color from the selfie photo
+                r = skinDark.r + blend * (pr / 255 - skinDark.r);
+                g = skinDark.g + blend * (pg / 255 - skinDark.g);
+                b = skinDark.b + blend * (pb / 255 - skinDark.b);
+              } else {
+                // Hair, background, or non-skin — fall back to zone severity color
+                const col = zoneColor(normX, normY, fnz);
+                r = col.r;
+                g = col.g;
+                b = col.b;
+              }
             } else {
               const col = zoneColor(normX, normY, fnz);
               r = col.r;
@@ -392,7 +440,6 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
 
           geo.setAttribute("color", new THREE.BufferAttribute(colorBuf, 3));
 
-          // Skin material: MeshPhysicalMaterial with sheen for SSS approximation
           child.material = new THREE.MeshPhysicalMaterial({
             vertexColors: true,
             roughness: 0.68,
@@ -455,8 +502,8 @@ export function Face3DModel({ scores, frontHeatmapUrl }: Props) {
         )}
       </div>
       <p className="text-[10px] text-center text-on-surface-variant/50">
-        {frontHeatmapUrl
-          ? "Colors sampled from heatmap"
+        {frontPhotoUrl
+          ? "Skin color sampled from your selfie"
           : "Colors derived from severity scores"}{" "}
         · Drag to rotate
       </p>
