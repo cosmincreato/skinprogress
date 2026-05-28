@@ -1,9 +1,14 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using SkinProgress.Data;
 
 #nullable disable
 
 namespace SkinProgress.Migrations
 {
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260529000001_RepairMissingColumnsV2")]
     public partial class RepairMissingColumnsV2 : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
