@@ -97,6 +97,9 @@ builder.Services.AddHttpClient("AiAnalyzer", client =>
 // Register Qdrant vector database client
 builder.Services.AddHttpClient<IQdrantService, QdrantService>();
 
+// Register Ollama embedding service
+builder.Services.AddHttpClient<IOllamaEmbeddingService, OllamaEmbeddingService>();
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
