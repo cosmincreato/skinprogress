@@ -52,6 +52,12 @@ const DAILY_HABITS: { key: HabitKey; label: string }[] = [
   { key: "spf", label: "SPF" },
 ];
 
+const HABIT_NAMES: Record<HabitKey, string> = {
+  cleaning: "Cleanse",
+  hydration: "Hydrate",
+  spf: "SPF",
+};
+
 
 
 // Get today's date key using UTC (consistent with database storage)
@@ -473,33 +479,26 @@ const ProfilePage = () => {
     setUploadError(null);
   }, []);
 
-  const handleHabitToggle = async (habit: HabitKey) => {
-    const habitNames: Record<HabitKey, string> = {
-      cleaning: "Cleanse",
-      hydration: "Hydrate",
-      spf: "SPF",
-    };
-
-    // Update local state first for immediate UI feedback
-    setHabitEntries((prev) => {
-      const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
-      const next: Record<string, HabitDayRecord> = {
+  const handleHabitToggle = (habit: HabitKey) => {
+    setHabitLockState((prev) => {
+      if (prev[habit] === "locked") return prev;
+      return {
         ...prev,
-        [todayHabitKey]: {
-          ...current,
-          [habit]: !current[habit],
-        },
+        [habit]: prev[habit] === "checked" ? "unchecked" : "checked",
       };
-      return next;
     });
+  };
 
-    // Save to database immediately
+  const handleLockIn = async (habit: HabitKey) => {
     try {
-      const habitName = habitNames[habit];
-      await habitsService.completeHabit(habitName);
-      console.log("DEBUG: Saved habit:", habitName);
+      await habitsService.completeHabit(HABIT_NAMES[habit]);
+      setHabitLockState((prev) => ({ ...prev, [habit]: "locked" }));
+      setHabitEntries((prev) => {
+        const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
+        return { ...prev, [todayHabitKey]: { ...current, [habit]: true } };
+      });
     } catch (error) {
-      console.error("Failed to save habit:", error);
+      console.error("Failed to lock in habit:", error);
     }
   };
 
