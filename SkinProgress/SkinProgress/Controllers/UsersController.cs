@@ -888,6 +888,12 @@ public class UsersController : ControllerBase
                 CreatedAt = DateTime.UtcNow,
             };
 
+            // Query previous analysis before saving new one (needed for acne delta in text)
+            var previousAnalysis = await _context.AnalysisResults
+                .Where(ar => ar.UserId == userId.ToString() && ar.Status == "Completed")
+                .OrderByDescending(ar => ar.Timestamp)
+                .FirstOrDefaultAsync();
+
             _context.AnalysisResults.Add(analysisResult);
             await _context.SaveChangesAsync();
 
@@ -895,17 +901,35 @@ public class UsersController : ControllerBase
             {
                 await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
 
-                var scoreEventData = new Dictionary<string, string>
-                {
-                    { "acne_score", analysisResult.AcneSeverity?.ToString() ?? "0" },
-                    { "redness_score", analysisResult.RednessSeverity?.ToString() ?? "0" },
-                    { "under_eye_bags_score", analysisResult.UnderEyeBagsSeverity?.ToString() ?? "0" },
-                    { "overall_score", (((analysisResult.AcneSeverity ?? 0) + (analysisResult.RednessSeverity ?? 0) + (analysisResult.UnderEyeBagsSeverity ?? 0)) / 3.0).ToString() }
-                };
-                await _qdrantService.StoreUserActivityAsync(userId.ToString(), "score_update", scoreEventData);
+                _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
+                    userId.ToString(),
+                    new SelfieAnalyzedEvent
+                    {
+                        AnalysisId = analysisResult.Id,
+                        AcneSeverity = analysisResult.AcneSeverity ?? 0,
+                        RednessSeverity = analysisResult.RednessSeverity ?? 0,
+                        UnderEyeBagsSeverity = analysisResult.UnderEyeBagsSeverity ?? 0,
+                        PreviousAcneSeverity = previousAnalysis?.AcneSeverity,
+                        Timestamp = analysisResult.Timestamp
+                    }
+                ));
 
                 var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);
                 Console.WriteLine($"Generated {recommendations.Count} recommendations for user {userId}");
+
+                if (recommendations.Count > 0)
+                {
+                    _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
+                        userId.ToString(),
+                        new RecommendationsGivenEvent
+                        {
+                            RecommendationTitles = recommendations.Select(r => r.Title).ToArray(),
+                            RecommendationCategories = recommendations.Select(r => r.Category).ToArray(),
+                            LinkedAnalysisId = analysisResult.Id.ToString(),
+                            Timestamp = DateTime.UtcNow
+                        }
+                    ));
+                }
             }
             catch (Exception ex)
             {
