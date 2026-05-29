@@ -186,6 +186,8 @@ public class QdrantService : IQdrantService
                 if (retries > 0) await Task.Delay(2000);
             }
         }
+
+        _logger.LogWarning("Failed to initialize activity log collection after 3 retries. Service will attempt on-demand.");
     }
 
     public async Task<string> StoreAnalysisAsync(string userId, AnalysisResult analysisResult)
@@ -558,6 +560,8 @@ public class QdrantService : IQdrantService
             }
 
             // Also delete from activity log collection
+            await EnsureActivityCollectionInitializedAsync();
+
             var activityDeleteRequest = new
             {
                 filter = new
@@ -575,6 +579,11 @@ public class QdrantService : IQdrantService
             if (activityResponse.IsSuccessStatusCode)
             {
                 _logger.LogInformation("Activity log data deleted from Qdrant: {UserId}", userId);
+            }
+            else
+            {
+                var activityContent = await activityResponse.Content.ReadAsStringAsync();
+                _logger.LogWarning("Failed to delete activity log data from Qdrant for user {UserId}: {Content}", userId, activityContent);
             }
         }
         catch (Exception ex)
