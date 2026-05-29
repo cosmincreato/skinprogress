@@ -93,6 +93,7 @@ public class OllamaEmbeddingServiceTests
         // Assert
         Assert.IsNotNull(capturedRequest);
         Assert.AreEqual(HttpMethod.Post, capturedRequest.Method);
+        StringAssert.Contains(capturedRequest.RequestUri!.ToString(), "/api/embed");
         var body = await capturedRequest.Content!.ReadAsStringAsync();
         StringAssert.Contains(body, "bge-m3:latest");
         StringAssert.Contains(body, "hello");

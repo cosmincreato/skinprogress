@@ -10,6 +10,7 @@ public class OllamaEmbeddingService : IOllamaEmbeddingService
 {
     private readonly HttpClient _httpClient;
     private readonly string _model;
+    private readonly string _ollamaUrl;
     private readonly ILogger<OllamaEmbeddingService> _logger;
 
     public OllamaEmbeddingService(HttpClient httpClient, IConfiguration config, ILogger<OllamaEmbeddingService> logger)
@@ -20,19 +21,30 @@ public class OllamaEmbeddingService : IOllamaEmbeddingService
 
         var host = config["Ollama:Host"] ?? "ollama";
         var port = config["Ollama:Port"] ?? "11434";
-        _httpClient.BaseAddress = new Uri($"http://{host}:{port}");
+        _ollamaUrl = $"http://{host}:{port}";
     }
 
     public async Task<float[]> EmbedAsync(string text)
     {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("text cannot be null or empty", nameof(text));
+
         var request = new { model = _model, input = text };
-        var response = await _httpClient.PostAsJsonAsync("/api/embed", request);
+        var response = await _httpClient.PostAsJsonAsync($"{_ollamaUrl}/api/embed", request);
         response.EnsureSuccessStatusCode();
 
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return json.GetProperty("embeddings")[0]
-                   .EnumerateArray()
-                   .Select(e => e.GetSingle())
-                   .ToArray();
+        try
+        {
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return json.GetProperty("embeddings")[0]
+                       .EnumerateArray()
+                       .Select(e => e.GetSingle())
+                       .ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Ollama embedding response for model {Model}", _model);
+            throw;
+        }
     }
 }
