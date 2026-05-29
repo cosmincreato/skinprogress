@@ -422,8 +422,7 @@ const ProfilePage = () => {
           });
 
           setHabitEntries(habitMap);
-          const todayKey = getTodayDateKeyUTC();
-          const todayRecord = habitMap[todayKey];
+          const todayRecord = habitMap[todayHabitKey];
           if (todayRecord) {
             setHabitLockState({
               cleaning: todayRecord.cleaning ? "locked" : "unchecked",
@@ -749,7 +748,8 @@ const ProfilePage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {DAILY_HABITS.map((habit) => {
-                const checked = todayHabits[habit.key];
+                const lockState = habitLockState[habit.key];
+                const checked = lockState === "locked" || lockState === "checked";
 
                 return (
                   <label
