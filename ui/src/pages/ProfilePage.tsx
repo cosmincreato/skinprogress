@@ -33,6 +33,8 @@ type HabitKey = "cleaning" | "hydration" | "spf";
 
 type HabitDayRecord = Record<HabitKey, boolean>;
 
+type LockState = "unchecked" | "checked" | "locked";
+
 type SelfiesApiItem = {
   url?: string;
   uploadedAt?: string;
@@ -208,6 +210,9 @@ const ProfilePage = () => {
   const [habitEntries, setHabitEntries] = useState<
     Record<string, HabitDayRecord>
   >({});
+  const [habitLockState, setHabitLockState] = useState<
+    Record<HabitKey, LockState>
+  >({ cleaning: "unchecked", hydration: "unchecked", spf: "unchecked" });
   const [userBadges, setUserBadges] = useState<any[]>([]);
   const [_, setHabitsLoading] = useState(false);
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
@@ -215,7 +220,6 @@ const ProfilePage = () => {
   const currentUserId = getUserIdFromToken();
   const todayHabitKey = getTodayDateKeyUTC();
 
-  const todayHabits = habitEntries[todayHabitKey] ?? createEmptyHabitRecord();
   const completedHabitDays = Object.values(habitEntries).filter((entry) =>
     isHabitDayComplete(entry),
   ).length;
@@ -418,6 +422,15 @@ const ProfilePage = () => {
           });
 
           setHabitEntries(habitMap);
+          const todayKey = getTodayDateKeyUTC();
+          const todayRecord = habitMap[todayKey];
+          if (todayRecord) {
+            setHabitLockState({
+              cleaning: todayRecord.cleaning ? "locked" : "unchecked",
+              hydration: todayRecord.hydration ? "locked" : "unchecked",
+              spf: todayRecord.spf ? "locked" : "unchecked",
+            });
+          }
         } catch (e) {
           console.warn("Failed to fetch habit range, using empty habits", e);
           setHabitEntries({});
