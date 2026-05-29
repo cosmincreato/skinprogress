@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using SkinProgress.Models;
 using SkinProgress.Models.Entities;
 using SkinProgress.Services.Interfaces;
 
@@ -15,20 +16,25 @@ public class QdrantService : IQdrantService
     private readonly ILogger<QdrantService> _logger;
     private readonly string _qdrantUrl;
     private readonly string _collectionName = "skinprogress_analyses";
+    private readonly string _activityCollectionName = "skinprogress_activity_log";
+    private readonly IOllamaEmbeddingService _ollamaEmbeddingService;
     private bool _isInitialized = false;
     private readonly SemaphoreSlim _initializationLock = new SemaphoreSlim(1, 1);
+    private bool _isActivityCollectionInitialized = false;
+    private readonly SemaphoreSlim _activityInitLock = new SemaphoreSlim(1, 1);
 
-    public QdrantService(HttpClient httpClient, ILogger<QdrantService> logger, IConfiguration config)
+    public QdrantService(HttpClient httpClient, ILogger<QdrantService> logger, IConfiguration config, IOllamaEmbeddingService ollamaEmbeddingService)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+        _ollamaEmbeddingService = ollamaEmbeddingService ?? throw new ArgumentNullException(nameof(ollamaEmbeddingService));
+
         var host = config["Qdrant:Host"] ?? "qdrant";
         var port = config["Qdrant:Port"] ?? "6333";
         _qdrantUrl = $"http://{host}:{port}";
 
-        // Start initialization in background without blocking startup
         _ = Task.Run(() => EnsureCollectionInitializedAsync());
+        _ = Task.Run(() => EnsureActivityCollectionInitializedAsync());
     }
 
     /// <summary>
@@ -117,6 +123,69 @@ public class QdrantService : IQdrantService
         }
 
         _logger.LogWarning("Failed to initialize Qdrant collection after 3 retries. Service will attempt on-demand.");
+    }
+
+    private async Task EnsureActivityCollectionInitializedAsync()
+    {
+        if (_isActivityCollectionInitialized) return;
+
+        await _activityInitLock.WaitAsync();
+        try
+        {
+            if (_isActivityCollectionInitialized) return;
+            await InitializeActivityCollectionAsync();
+            _isActivityCollectionInitialized = true;
+        }
+        finally
+        {
+            _activityInitLock.Release();
+        }
+    }
+
+    private async Task InitializeActivityCollectionAsync()
+    {
+        int retries = 3;
+        while (retries > 0)
+        {
+            try
+            {
+                var checkUrl = $"{_qdrantUrl}/collections/{_activityCollectionName}";
+                var response = await _httpClient.GetAsync(checkUrl);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Creating Qdrant collection: {CollectionName}", _activityCollectionName);
+
+                    var createRequest = new
+                    {
+                        vectors = new { size = 1024, distance = "Cosine" }
+                    };
+
+                    var createResponse = await _httpClient.PutAsJsonAsync(checkUrl, createRequest);
+                    if (!createResponse.IsSuccessStatusCode)
+                    {
+                        retries--;
+                        if (retries > 0) await Task.Delay(2000);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Activity log collection created successfully");
+                        return;
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("Activity log collection already exists");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing activity collection (retries left: {Retries})", retries);
+                retries--;
+                if (retries > 0) await Task.Delay(2000);
+            }
+        }
     }
 
     public async Task<string> StoreAnalysisAsync(string userId, AnalysisResult analysisResult)
@@ -487,6 +556,26 @@ public class QdrantService : IQdrantService
             {
                 _logger.LogInformation("User data deleted from Qdrant: {UserId}", userId);
             }
+
+            // Also delete from activity log collection
+            var activityDeleteRequest = new
+            {
+                filter = new
+                {
+                    must = new[]
+                    {
+                        new { key = "user_id", match = new { value = userId } }
+                    }
+                }
+            };
+
+            var activityUrl = $"{_qdrantUrl}/collections/{_activityCollectionName}/points/delete";
+            var activityResponse = await _httpClient.PostAsJsonAsync(activityUrl, activityDeleteRequest);
+
+            if (activityResponse.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Activity log data deleted from Qdrant: {UserId}", userId);
+            }
         }
         catch (Exception ex)
         {
@@ -601,6 +690,53 @@ public class QdrantService : IQdrantService
         {
             _logger.LogError(ex, "Error storing activity in Qdrant for user {UserId}", userId);
             // Don't throw - activity logging should not block main flow
+        }
+    }
+
+    public async Task LogActivityEventAsync(string userId, ActivityEvent evt)
+    {
+        try
+        {
+            await EnsureActivityCollectionInitializedAsync();
+
+            var text = evt.ToText();
+            var vector = await _ollamaEmbeddingService.EmbedAsync(text);
+
+            var payload = new Dictionary<string, object>
+            {
+                ["user_id"] = userId,
+                ["event_type"] = evt.EventType,
+                ["timestamp"] = evt.Timestamp.ToString("O"),
+                ["date"] = evt.Timestamp.ToString("yyyy-MM-dd"),
+                ["text"] = text
+            };
+
+            foreach (var kv in evt.ToMetadata())
+                payload[kv.Key] = kv.Value;
+
+            var point = new
+            {
+                id = Guid.NewGuid(),
+                vector,
+                payload
+            };
+
+            var url = $"{_qdrantUrl}/collections/{_activityCollectionName}/points?wait=true";
+            var response = await _httpClient.PutAsJsonAsync(url, new { points = new[] { point } });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Failed to log activity event {EventType}: {Content}", evt.EventType, content);
+            }
+            else
+            {
+                _logger.LogInformation("Activity event logged: {EventType} for user {UserId}", evt.EventType, userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error logging activity event {EventType} for user {UserId}", evt.EventType, userId);
         }
     }
 }

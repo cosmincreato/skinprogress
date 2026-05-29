@@ -1,3 +1,4 @@
+using SkinProgress.Models;
 using SkinProgress.Models.Entities;
 
 namespace SkinProgress.Services.Interfaces;
@@ -62,6 +63,13 @@ public interface IQdrantService
     /// <param name="eventType">Type of event: habit_completion, photo_upload, score_update</param>
     /// <param name="eventData">Event metadata and values</param>
     Task StoreUserActivityAsync(string userId, string eventType, Dictionary<string, string> eventData);
+
+    /// <summary>
+    /// Logs a structured user activity event to the skinprogress_activity_log collection.
+    /// Embeds the event text via Ollama bge-m3 for semantic retrieval by Bloom chatbot.
+    /// Fire-and-forget — swallows exceptions so it never blocks callers.
+    /// </summary>
+    Task LogActivityEventAsync(string userId, ActivityEvent evt);
 }
 
 /// <summary>
