@@ -81,6 +81,25 @@ public class ActivityEventTests
     }
 
     [TestMethod]
+    public void SelfieAnalyzedEvent_ToText_WithZeroPreviousScore_OmitsDelta()
+    {
+        var evt = new SelfieAnalyzedEvent
+        {
+            AnalysisId = Guid.NewGuid(),
+            AcneSeverity = 4,
+            RednessSeverity = 3,
+            UnderEyeBagsSeverity = 2,
+            PreviousAcneSeverity = 0,
+            Timestamp = new DateTime(2026, 5, 29, 10, 32, 0, DateTimeKind.Utc)
+        };
+
+        var text = evt.ToText();
+
+        Assert.IsFalse(text.Contains("improved") || text.Contains("worsened"),
+            "Delta omitted when previous score is 0 (division-by-zero prevention)");
+    }
+
+    [TestMethod]
     public void RecommendationsGivenEvent_ToText_ContainsTitles()
     {
         var evt = new RecommendationsGivenEvent

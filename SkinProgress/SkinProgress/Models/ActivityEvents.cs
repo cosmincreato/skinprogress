@@ -15,7 +15,7 @@ public class QuestLockInEvent : ActivityEvent
     public override string EventType => "daily_quest_lock_in";
 
     public override string ToText() =>
-        $"User locked in their daily quest on {Timestamp:MMMM d yyyy}. " +
+        $"User locked in their daily quest on {Timestamp.ToString("MMMM d yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}. " +
         $"Habits completed and permanently locked: {string.Join(", ", HabitNames)}.";
 
     public override Dictionary<string, object> ToMetadata() => new()
@@ -34,12 +34,13 @@ public class SelfieTakenEvent : ActivityEvent
     public override string EventType => "selfie_taken";
 
     public override string ToText() =>
-        $"User took a selfie set on {Timestamp:MMMM d yyyy} at {Timestamp:h:mm tt}.";
+        $"User took a selfie set on {Timestamp.ToString("MMMM d yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US"))} at {Timestamp:h:mm tt}.";
 
     public override Dictionary<string, object> ToMetadata() => new()
     {
         ["photo_id"] = PhotoId.ToString(),
-        ["capture_angles"] = CaptureAngles
+        ["capture_angles"] = CaptureAngles,
+        ["capture_angle_count"] = CaptureAngles.Length
     };
 }
 
@@ -60,7 +61,7 @@ public class SelfieAnalyzedEvent : ActivityEvent
 
     public override string ToText()
     {
-        var text = $"User's skin was analyzed on {Timestamp:MMMM d yyyy}. " +
+        var text = $"User's skin was analyzed on {Timestamp.ToString("MMMM d yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}. " +
                    $"Acne severity {AcneSeverity}/10, redness {RednessSeverity}/10, " +
                    $"under-eye bags {UnderEyeBagsSeverity}/10.";
 
@@ -99,7 +100,7 @@ public class RecommendationsGivenEvent : ActivityEvent
     public override string ToText()
     {
         var titles = string.Join(", ", RecommendationTitles.Take(3).Select(t => t.ToLower()));
-        return $"New skincare recommendations given on {Timestamp:MMMM d yyyy}: {titles}.";
+        return $"New skincare recommendations given on {Timestamp.ToString("MMMM d yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}: {titles}.";
     }
 
     public override Dictionary<string, object> ToMetadata() => new()
