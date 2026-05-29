@@ -116,6 +116,7 @@ public class HabitsController : ControllerBase
         {
             try
             {
+                var lockInTime = DateTime.UtcNow;
                 var todayCompletions = await _context.HabitCompletions
                     .Where(hc => hc.UserId == userId && hc.Date.Date == today)
                     .Include(hc => hc.HabitDefinition)
@@ -134,7 +135,7 @@ public class HabitsController : ControllerBase
                         new QuestLockInEvent
                         {
                             HabitNames = habitNames,
-                            Timestamp = DateTime.UtcNow
+                            Timestamp = lockInTime
                         }
                     ));
                 }

@@ -57,14 +57,6 @@ public interface IQdrantService
     Task DeleteUserDataAsync(string userId);
 
     /// <summary>
-    /// Stores user activity events (habit completions, photos, scores) in Qdrant for pattern analysis.
-    /// </summary>
-    /// <param name="userId">User unique identifier</param>
-    /// <param name="eventType">Type of event: habit_completion, photo_upload, score_update</param>
-    /// <param name="eventData">Event metadata and values</param>
-    Task StoreUserActivityAsync(string userId, string eventType, Dictionary<string, string> eventData);
-
-    /// <summary>
     /// Logs a structured user activity event to the skinprogress_activity_log collection.
     /// Embeds the event text via Ollama bge-m3 for semantic retrieval by Bloom chatbot.
     /// Fire-and-forget — swallows exceptions so it never blocks callers.
