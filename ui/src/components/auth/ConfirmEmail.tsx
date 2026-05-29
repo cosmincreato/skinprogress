@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { confirmEmail } from "../../services/authService";
+import { confirmEmail, resendConfirmationEmail } from "../../services/authService";
 
 /**
  * Email Confirmation Component
@@ -16,6 +16,9 @@ export function ConfirmEmail() {
   const [isLoading, setIsLoading] = useState(!!searchParams.get("token"));
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [resendEmail, setResendEmail] = useState(searchParams.get("email") || "");
+  const [resendStatus, setResendStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [resendError, setResendError] = useState("");
 
   useEffect(() => {
     // Auto-confirm if token in URL
@@ -45,6 +48,20 @@ export function ConfirmEmail() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     handleConfirm(token);
+  };
+
+  const handleResend = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!resendEmail.trim()) return;
+    setResendStatus("loading");
+    setResendError("");
+    try {
+      await resendConfirmationEmail(resendEmail.trim());
+      setResendStatus("sent");
+    } catch (err) {
+      setResendError(err instanceof Error ? err.message : "Failed to resend");
+      setResendStatus("error");
+    }
   };
 
   // Success state
@@ -190,7 +207,7 @@ export function ConfirmEmail() {
         )}
 
         {/* Help Links */}
-        <div className="border-t border-slate-700 mt-6 pt-6">
+        <div className="border-t border-slate-700 mt-6 pt-6 space-y-4">
           <p className="text-sm text-on-surface-variant">
             Already have an account?{" "}
             <button
@@ -200,12 +217,38 @@ export function ConfirmEmail() {
               Login here
             </button>
           </p>
-          <p className="text-sm text-on-surface-variant mt-3">
-            Didn't receive the email?{" "}
-            <button className="text-purple-300 hover:text-purple-200 font-medium">
-              Request a new code
-            </button>
-          </p>
+
+          <div>
+            <p className="text-sm text-on-surface-variant mb-2">
+              Didn't receive the email? Request a new code:
+            </p>
+            {resendStatus === "sent" ? (
+              <p className="text-sm text-green-400">
+                ✓ New code sent — check your inbox.
+              </p>
+            ) : (
+              <form onSubmit={handleResend} className="flex gap-2">
+                <input
+                  type="email"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                  className="flex-1 px-3 py-1.5 bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={resendStatus === "loading" || !resendEmail.trim()}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                >
+                  {resendStatus === "loading" ? "Sending…" : "Resend"}
+                </button>
+              </form>
+            )}
+            {resendStatus === "error" && (
+              <p className="text-xs text-red-400 mt-1">{resendError}</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

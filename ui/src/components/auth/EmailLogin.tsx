@@ -211,7 +211,7 @@ export function EmailLogin() {
               {error.includes("not confirmed") && (
                 <button
                   type="button"
-                  onClick={() => navigate("/confirm-email")}
+                  onClick={() => navigate(`/confirm-email?email=${encodeURIComponent(email)}`)}
                   className="text-sm text-purple-300 hover:text-purple-200 mt-2 font-medium"
                 >
                   Confirm email

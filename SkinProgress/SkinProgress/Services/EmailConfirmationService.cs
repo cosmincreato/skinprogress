@@ -30,6 +30,13 @@ public interface IEmailConfirmationService
     /// Returns null if token invalid or expired.
     /// </summary>
     Task<User?> GetUserFromTokenAsync(string token);
+
+    /// <summary>
+    /// Resend confirmation email. No-ops silently if account doesn't exist or is already confirmed.
+    /// Rate-limited to one resend per ResendConfirmationCooldownMinutes.
+    /// Throws InvalidOperationException if cooldown has not elapsed.
+    /// </summary>
+    Task ResendConfirmationEmailAsync(string email, IEmailService emailService);
 }
 
 public class EmailConfirmationService : IEmailConfirmationService
@@ -170,5 +177,38 @@ public class EmailConfirmationService : IEmailConfirmationService
         }
 
         return await _dbContext.Users.FindAsync(confirmationToken.UserId);
+    }
+
+    public async Task ResendConfirmationEmailAsync(string email, IEmailService emailService)
+    {
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Email == email.Trim().ToLower());
+
+        // Silently no-op if account doesn't exist or is already confirmed
+        if (user == null || user.EmailConfirmed)
+            return;
+
+        // Enforce cooldown
+        var recent = await _dbContext.UserEmailConfirmationTokens
+            .Where(t => t.UserId == user.Id)
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (recent != null && recent.CreatedAt > DateTime.UtcNow.AddMinutes(-AuthConstants.ResendConfirmationCooldownMinutes))
+        {
+            var waitSeconds = (int)(recent.CreatedAt.AddMinutes(AuthConstants.ResendConfirmationCooldownMinutes) - DateTime.UtcNow).TotalSeconds;
+            throw new InvalidOperationException($"Please wait {waitSeconds} seconds before requesting another code.");
+        }
+
+        var token = await GenerateConfirmationTokenAsync(user.Id);
+
+        try
+        {
+            await emailService.SendConfirmationEmailAsync(user.Email!, token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Failed to resend confirmation email to {user.Email}: {ex.Message}");
+        }
     }
 }

@@ -78,6 +78,27 @@ export async function confirmEmail(
 }
 
 /**
+ * Resend confirmation email to an unconfirmed account.
+ * Rate-limited to one resend per 5 minutes.
+ */
+export async function resendConfirmationEmail(
+  email: string
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/email/resend-confirmation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to resend confirmation email");
+  }
+
+  return response.json();
+}
+
+/**
  * Login user with email and password
  * Returns JWT access and refresh tokens
  * Can only login after email is confirmed
