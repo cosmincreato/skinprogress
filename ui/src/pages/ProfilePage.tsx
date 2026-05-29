@@ -490,14 +490,15 @@ const ProfilePage = () => {
   };
 
   const handleLockIn = async (habit: HabitKey) => {
+    setHabitLockState((prev) => ({ ...prev, [habit]: "locked" }));
     try {
       await habitsService.completeHabit(HABIT_NAMES[habit]);
-      setHabitLockState((prev) => ({ ...prev, [habit]: "locked" }));
       setHabitEntries((prev) => {
         const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
         return { ...prev, [todayHabitKey]: { ...current, [habit]: true } };
       });
     } catch (error) {
+      setHabitLockState((prev) => ({ ...prev, [habit]: "checked" }));
       console.error("Failed to lock in habit:", error);
     }
   };

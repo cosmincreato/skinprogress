@@ -36,7 +36,6 @@ export const habitsService = {
     const token = getAuthToken();
     if (!token) throw new Error("Not authenticated");
 
-    console.log("DEBUG habitsService: Calling initialize");
     const response = await fetch(`${API_BASE}/initialize`, {
       method: "POST",
       headers: {
@@ -44,9 +43,7 @@ export const habitsService = {
       },
     });
 
-    console.log("DEBUG habitsService: Initialize response status:", response.status);
     const responseText = await response.text();
-    console.log("DEBUG habitsService: Initialize response:", responseText);
 
     if (!response.ok) {
       throw new Error(`Failed to initialize habits: Status ${response.status}: ${responseText}`);
@@ -57,22 +54,16 @@ export const habitsService = {
     const token = getAuthToken();
     if (!token) throw new Error("Not authenticated");
 
-    console.log("DEBUG habitsService: Calling complete habit with:", habitName);
-    const requestBody = { habitName };
-    console.log("DEBUG habitsService: Request body:", requestBody);
-
     const response = await fetch(`${API_BASE}/complete`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({ habitName }),
     });
 
-    console.log("DEBUG habitsService: Response status:", response.status);
     const responseText = await response.text();
-    console.log("DEBUG habitsService: Response text:", responseText);
 
     if (!response.ok) {
       throw new Error(`Failed to complete habit: ${habitName} - Status ${response.status}: ${responseText}`);
