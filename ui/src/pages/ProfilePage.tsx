@@ -748,27 +748,48 @@ const ProfilePage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {DAILY_HABITS.map((habit) => {
                 const lockState = habitLockState[habit.key];
-                const checked = lockState === "locked" || lockState === "checked";
+                const isLocked = lockState === "locked";
+                const isChecked = lockState === "checked" || isLocked;
 
                 return (
-                  <label
+                  <div
                     key={habit.key}
-                    className={`flex items-center justify-between rounded-xl border p-4 cursor-pointer transition-colors ${
-                      checked
+                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors ${
+                      isLocked
                         ? "border-green-500/40 bg-green-500/10"
-                        : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
+                        : isChecked
+                          ? "border-amber-500/40 bg-amber-500/10"
+                          : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
                     }`}
                   >
-                    <span className="text-on-surface font-medium">
-                      {habit.label}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleHabitToggle(habit.key)}
-                      className="h-4 w-4 accent-green-500"
-                    />
-                  </label>
+                    <label
+                      className={`flex items-center justify-between ${isLocked ? "cursor-default" : "cursor-pointer"}`}
+                    >
+                      <span className="text-on-surface font-medium flex items-center gap-2">
+                        {habit.label}
+                        {isLocked && (
+                          <span className="text-xs text-green-400" aria-label="Locked">
+                            🔒
+                          </span>
+                        )}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={isLocked}
+                        onChange={() => handleHabitToggle(habit.key)}
+                        className="h-4 w-4 accent-green-500 disabled:opacity-50"
+                      />
+                    </label>
+                    {lockState === "checked" && (
+                      <button
+                        onClick={() => handleLockIn(habit.key)}
+                        className="w-full rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold py-1.5 transition-colors"
+                      >
+                        Lock In
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
