@@ -1264,25 +1264,26 @@ const GalleryPage = () => {
                             />
                           </div>
 
-                          {angleOrder.some(
-                            (angle) =>
-                              !!analysisByDate[selectedDay.date].per_angle[
-                                angle
-                              ]?.heatmap_overlay_data_url,
-                          ) && (
-                            <div className="space-y-2 pt-1">
+                          <div className="space-y-2 pt-1">
                               <p className="text-xs font-medium text-on-surface-variant">
-                                Problem area heatmaps
+                                {angleOrder.some(
+                                  (angle) =>
+                                    !!analysisByDate[selectedDay.date].per_angle[angle]?.heatmap_overlay_data_url,
+                                )
+                                  ? "Problem area heatmaps"
+                                  : "Analyzed selfies"}
                               </p>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {angleOrder.map((angle) => {
                                   const angleData = analysisByDate[selectedDay.date].per_angle[angle];
                                   const overlayUrl = angleData?.heatmap_overlay_data_url ?? "";
-                                  const detections = angleData?.detections ?? [];
-                                  return overlayUrl ? (
+                                  const rawUrl = getPhotoForAngle(selectedDay.photos, angle)?.url ?? "";
+                                  const imageUrl = overlayUrl || rawUrl;
+                                  const detections = overlayUrl ? (angleData?.detections ?? []) : [];
+                                  return imageUrl ? (
                                     <HeatmapOverlay
                                       key={`${selectedDay.date}-heatmap-${angle}`}
-                                      imageUrl={overlayUrl}
+                                      imageUrl={imageUrl}
                                       detections={detections}
                                       angleLabel={formatAngleLabel(angle)}
                                     />
@@ -1297,7 +1298,6 @@ const GalleryPage = () => {
                                 })}
                               </div>
                             </div>
-                          )}
 
                           {analysisByDate[selectedDay.date].disclaimer && (
                             <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
@@ -1383,26 +1383,25 @@ const GalleryPage = () => {
                             })}
                           </div>
 
-                          {angleOrder.some(
-                            (angle) =>
-                              !!analysisByDate[selectedDay.date].per_angle[
-                                angle
-                              ]?.heatmap_overlay_data_url ||
-                              !!compareAnalysis.per_angle[angle]
-                                ?.heatmap_overlay_data_url,
-                          ) && (
-                            <div className="space-y-3">
+                          <div className="space-y-3">
                               <p className="text-xs text-on-surface-variant">
-                                Heatmap comparison
+                                {angleOrder.some(
+                                  (angle) =>
+                                    !!analysisByDate[selectedDay.date].per_angle[angle]?.heatmap_overlay_data_url ||
+                                    !!compareAnalysis.per_angle[angle]?.heatmap_overlay_data_url,
+                                )
+                                  ? "Heatmap comparison"
+                                  : "Photo comparison"}
                               </p>
                               {angleOrder.map((angle) => {
-                                const urlA =
-                                  analysisByDate[selectedDay.date].per_angle[
-                                    angle
-                                  ]?.heatmap_overlay_data_url;
-                                const urlB =
-                                  compareAnalysis.per_angle[angle]
-                                    ?.heatmap_overlay_data_url;
+                                const heatmapA =
+                                  analysisByDate[selectedDay.date].per_angle[angle]?.heatmap_overlay_data_url;
+                                const heatmapB =
+                                  compareAnalysis.per_angle[angle]?.heatmap_overlay_data_url;
+                                const rawA = getPhotoForAngle(selectedDay.photos, angle)?.url;
+                                const rawB = getPhotoForAngle(compareDay?.photos, angle)?.url;
+                                const urlA = heatmapA || rawA;
+                                const urlB = heatmapB || rawB;
                                 if (!urlA && !urlB) return null;
                                 return (
                                   <div key={angle}>
@@ -1415,18 +1414,16 @@ const GalleryPage = () => {
                                           <>
                                             <img
                                               src={urlA}
-                                              alt={`${formatAngleLabel(angle)} heatmap`}
+                                              alt={`${formatAngleLabel(angle)} ${heatmapA ? "heatmap" : "selfie"}`}
                                               className="w-full aspect-[4/3] object-cover"
                                             />
                                             <p className="text-center text-[10px] py-1 text-blue-300 bg-slate-900/60">
-                                              {formatUtcDateLabel(
-                                                selectedDay.date,
-                                              )}
+                                              {formatUtcDateLabel(selectedDay.date)}
                                             </p>
                                           </>
                                         ) : (
                                           <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-slate-600 rounded-xl">
-                                            No heatmap
+                                            No photo
                                           </div>
                                         )}
                                       </div>
@@ -1435,7 +1432,7 @@ const GalleryPage = () => {
                                           <>
                                             <img
                                               src={urlB}
-                                              alt={`${formatAngleLabel(angle)} heatmap`}
+                                              alt={`${formatAngleLabel(angle)} ${heatmapB ? "heatmap" : "selfie"}`}
                                               className="w-full aspect-[4/3] object-cover"
                                             />
                                             <p className="text-center text-[10px] py-1 text-purple-300 bg-slate-900/60">
@@ -1444,7 +1441,7 @@ const GalleryPage = () => {
                                           </>
                                         ) : (
                                           <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-slate-600 rounded-xl">
-                                            No heatmap
+                                            No photo
                                           </div>
                                         )}
                                       </div>
@@ -1453,7 +1450,6 @@ const GalleryPage = () => {
                                 );
                               })}
                             </div>
-                          )}
 
                           {compareMode &&
                             compareDate &&

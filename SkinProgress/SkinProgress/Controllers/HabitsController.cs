@@ -111,39 +111,37 @@ public class HabitsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        // Fire daily_quest_lock_in event only when this call completes the final habit
-        if (existingCompletion == null)
+        // Fire when all 3 required habits are completed today (upserts via deterministic point ID)
+        try
         {
-            try
+            string[] requiredHabits = { "Cleanse", "Hydrate", "SPF" };
+
+            var todayCompletedNames = await _context.HabitCompletions
+                .Where(hc => hc.UserId == userId && hc.Date.Date == today)
+                .Include(hc => hc.HabitDefinition)
+                .Select(hc => hc.HabitDefinition!.Name)
+                .ToListAsync();
+
+            _logger.LogInformation("Habit check: completed today for user {UserId}: {Names}",
+                userId, string.Join(", ", todayCompletedNames));
+
+            if (requiredHabits.All(h => todayCompletedNames.Contains(h)))
             {
-                var lockInTime = DateTime.UtcNow;
-                var todayCompletions = await _context.HabitCompletions
-                    .Where(hc => hc.UserId == userId && hc.Date.Date == today)
-                    .Include(hc => hc.HabitDefinition)
-                    .ToListAsync();
+                _logger.LogInformation("All required habits complete — firing QuestLockInEvent for user {UserId}", userId);
 
-                var defaultHabitCount = await _context.HabitDefinitions.CountAsync(h => h.IsDefault);
-
-                if (todayCompletions.Count >= defaultHabitCount)
-                {
-                    var habitNames = todayCompletions
-                        .Select(c => c.HabitDefinition?.Name ?? "Unknown")
-                        .ToArray();
-
-                    _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
-                        userId.ToString(),
-                        new QuestLockInEvent
-                        {
-                            HabitNames = habitNames,
-                            Timestamp = lockInTime
-                        }
-                    ));
-                }
+                _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
+                    userId.ToString(),
+                    new QuestLockInEvent
+                    {
+                        HabitNames = requiredHabits,
+                        Timestamp = DateTime.UtcNow
+                    }
+                ));
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error logging quest lock-in event");
-            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error logging quest lock-in event");
         }
 
         return Ok();

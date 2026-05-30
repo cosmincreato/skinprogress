@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace SkinProgress.Models;
 
 public abstract class ActivityEvent
@@ -6,6 +9,19 @@ public abstract class ActivityEvent
     public abstract string EventType { get; }
     public abstract string ToText();
     public abstract Dictionary<string, object> ToMetadata();
+
+    /// <summary>
+    /// Returns the Qdrant point ID for this event.
+    /// Default is a random GUID (append-only log semantics).
+    /// Override for events that should upsert by natural key (e.g. one-per-day events).
+    /// </summary>
+    public virtual Guid GetPointId(string userId) => Guid.NewGuid();
+
+    protected static Guid DeterministicGuid(string input)
+    {
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
+        return new Guid(hash);
+    }
 }
 
 public class QuestLockInEvent : ActivityEvent
@@ -13,6 +29,9 @@ public class QuestLockInEvent : ActivityEvent
     public required string[] HabitNames { get; init; }
 
     public override string EventType => "daily_quest_lock_in";
+
+    public override Guid GetPointId(string userId) =>
+        DeterministicGuid($"{userId}:daily_quest_lock_in:{Timestamp:yyyy-MM-dd}");
 
     public override string ToText() =>
         $"User locked in their daily quest on {Timestamp.ToString("MMMM d yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}. " +
@@ -58,6 +77,9 @@ public class SelfieAnalyzedEvent : ActivityEvent
     public int? PreviousAcneSeverity { get; init; }
 
     public override string EventType => "selfie_analyzed";
+
+    public override Guid GetPointId(string userId) =>
+        DeterministicGuid($"{userId}:selfie_analyzed:{Timestamp:yyyy-MM-dd}");
 
     public override string ToText()
     {

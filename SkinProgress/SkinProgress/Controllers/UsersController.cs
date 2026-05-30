@@ -439,104 +439,6 @@ public class UsersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Gets personalized skincare recommendations based on latest analysis and historical trends.
-    /// Uses Qdrant RAG pipeline to generate context-aware recommendations.
-    /// </summary>
-    [HttpGet("{id}/recommendations")]
-    [Authorize]
-    public async Task<IActionResult> GetRecommendations(Guid id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            // Get the latest analysis for this user
-            var latestAnalysis = await _context.AnalysisResults
-                .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
-                .OrderByDescending(ar => ar.Timestamp)
-                .FirstOrDefaultAsync();
-
-            if (latestAnalysis == null)
-            {
-                return Ok(new { message = "No completed analyses found. Analyze your selfies to get recommendations.", recommendations = new List<object>() });
-            }
-
-            var recommendations = await _qdrantService.GenerateRecommendationsAsync(id.ToString(), latestAnalysis);
-            return Ok(new { analysisDate = latestAnalysis.Timestamp, recommendations });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GetRecommendations error: {ex.Message}");
-            return StatusCode(500, new { message = "Error retrieving recommendations", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Gets analysis history stored in Qdrant vector database.
-    /// Used for RAG pipeline and historical pattern analysis.
-    /// </summary>
-    [HttpGet("{id}/analysis-history")]
-    [Authorize]
-    public async Task<IActionResult> GetAnalysisHistory(Guid id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var history = await _qdrantService.GetUserAnalysisHistoryAsync(id.ToString());
-            return Ok(new { count = history.Count, analyses = history });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GetAnalysisHistory error: {ex.Message}");
-            return StatusCode(500, new { message = "Error retrieving analysis history", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Stores user lifestyle context (habits, routines, etc.) for recommendation personalization.
-    /// </summary>
-    [HttpPost("{id}/user-context")]
-    [Authorize]
-    public async Task<IActionResult> StoreUserContext(Guid id, [FromBody] Dictionary<string, string> contextData)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            if (contextData == null || contextData.Count == 0)
-            {
-                return BadRequest(new { message = "Context data is required" });
-            }
-
-            await _qdrantService.StoreUserContextAsync(id.ToString(), contextData);
-            return Ok(new { message = "User context stored successfully" });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"StoreUserContext error: {ex.Message}");
-            return StatusCode(500, new { message = "Error storing user context", error = ex.Message });
-        }
-    }
 
     // DELETE: api/users/{id}
     // Admins can delete anyone; Users can only delete themselves
@@ -899,8 +801,6 @@ public class UsersController : ControllerBase
 
             try
             {
-                await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
-
                 _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
                     userId.ToString(),
                     new SelfieAnalyzedEvent
@@ -914,22 +814,6 @@ public class UsersController : ControllerBase
                     }
                 ));
 
-                var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);
-                Console.WriteLine($"Generated {recommendations.Count} recommendations for user {userId}");
-
-                if (recommendations.Count > 0)
-                {
-                    _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
-                        userId.ToString(),
-                        new RecommendationsGivenEvent
-                        {
-                            RecommendationTitles = recommendations.Select(r => r.Title).ToArray(),
-                            RecommendationCategories = recommendations.Select(r => r.Category).ToArray(),
-                            LinkedAnalysisId = analysisResult.Id.ToString(),
-                            Timestamp = DateTime.UtcNow
-                        }
-                    ));
-                }
             }
             catch (Exception ex)
             {

@@ -68,7 +68,10 @@ export function ChatbotWidget() {
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
-        text: data.response || data.message || "I understand, but I couldn't generate a response.",
+        text:
+          data.response ||
+          data.message ||
+          "I understand, but I couldn't generate a response.",
         timestamp: new Date(),
       };
 
@@ -96,7 +99,9 @@ export function ChatbotWidget() {
         <div className="bg-slate-900 border border-pink-400/40 rounded-2xl shadow-2xl w-96 h-96 flex flex-col mb-4">
           {/* Header */}
           <div className="bg-gradient-to-r from-pink-500 to-pink-400 px-6 py-4 rounded-t-2xl flex items-center justify-between">
-            <h3 className="text-white font-semibold flex items-center gap-2">🌸 Bloom</h3>
+            <h3 className="text-white font-semibold flex items-center gap-2">
+              🌸 Bloom
+            </h3>
             <button
               onClick={() => setIsOpen(false)}
               className="text-white hover:bg-white/20 p-1 rounded transition"
@@ -161,9 +166,18 @@ export function ChatbotWidget() {
               <div className="flex justify-start">
                 <div className="bg-slate-700 text-on-surface px-4 py-2 rounded-lg rounded-bl-none">
                   <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    ></div>
                   </div>
                 </div>
               </div>
@@ -210,7 +224,7 @@ export function ChatbotWidget() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center"
+        className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center ml-80"
       >
         {isOpen ? (
           <svg
@@ -227,11 +241,7 @@ export function ChatbotWidget() {
             />
           </svg>
         ) : (
-          <svg
-            className="w-6 h-6"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
           </svg>
         )}
