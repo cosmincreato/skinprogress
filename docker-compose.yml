@@ -131,6 +131,32 @@ services:
       timeout: 10s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: skinprogress-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: skinprogress-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["ollama", "pull", "mxbai-embed-large"]
+    restart: "no"
+
 volumes:
   db_data:
   hf_cache:
@@ -138,3 +164,4 @@ volumes:
   n8n_data:
   qdrant_data:
   mailpit_data:
+  ollama_data:

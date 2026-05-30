@@ -8,15 +8,17 @@ public class QdrantService : IQdrantService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<QdrantService> _logger;
+    private readonly IOllamaEmbeddingService _embedding;
     private readonly string _qdrantUrl;
     private readonly string _activityCollectionName = "skinprogress_activity_log";
     private bool _isActivityCollectionInitialized = false;
     private readonly SemaphoreSlim _activityInitLock = new SemaphoreSlim(1, 1);
 
-    public QdrantService(HttpClient httpClient, ILogger<QdrantService> logger, IConfiguration config)
+    public QdrantService(HttpClient httpClient, ILogger<QdrantService> logger, IConfiguration config, IOllamaEmbeddingService embedding)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _embedding = embedding ?? throw new ArgumentNullException(nameof(embedding));
 
         var host = config["Qdrant:Host"] ?? "qdrant";
         var port = config["Qdrant:Port"] ?? "6333";
@@ -100,19 +102,33 @@ public class QdrantService : IQdrantService
             var text = evt.ToText();
             _logger.LogInformation("Prepared text for {EventType}: {Text}", evt.EventType, text);
 
-            var vector = new float[1024];
+            float[] vector;
+            try
+            {
+                vector = await _embedding.EmbedAsync(text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Embedding failed for {EventType}, skipping Qdrant write", evt.EventType);
+                return;
+            }
 
-            var payload = new Dictionary<string, object>
+            var metadata = new Dictionary<string, object>
             {
                 ["user_id"] = userId,
                 ["event_type"] = evt.EventType,
                 ["timestamp"] = evt.Timestamp.ToString("O"),
                 ["date"] = evt.Timestamp.ToString("yyyy-MM-dd"),
-                ["text"] = text
             };
 
             foreach (var kv in evt.ToMetadata())
-                payload[kv.Key] = kv.Value;
+                metadata[kv.Key] = kv.Value;
+
+            var payload = new Dictionary<string, object>
+            {
+                ["pageContent"] = text,
+                ["metadata"] = metadata,
+            };
 
             var pointId = evt.GetPointId(userId);
             _logger.LogInformation("Writing point {PointId} to Qdrant for {EventType}", pointId, evt.EventType);
@@ -155,7 +171,7 @@ public class QdrantService : IQdrantService
                 {
                     must = new[]
                     {
-                        new { key = "user_id", match = new { value = userId } }
+                        new { key = "metadata.user_id", match = new { value = userId } }
                     }
                 }
             };

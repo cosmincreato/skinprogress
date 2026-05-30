@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { isAuthenticated } from "../services/authService";
+import { isAuthenticated, getUserId } from "../services/authService";
 
 interface Message {
   id: string;
@@ -19,6 +19,7 @@ export function ChatbotWidget() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionId = useRef(`session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const n8nWebhookUrl =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
@@ -49,35 +50,41 @@ export function ChatbotWidget() {
     try {
       const response = await fetch(n8nWebhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: inputValue,
-          timestamp: new Date().toISOString(),
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatInput: inputValue, sessionId: sessionId.current, userId: getUserId() }),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log("[Chatbot] n8n raw response:", responseText.slice(0, 1000));
 
-      // Add bot response
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "bot",
-        text:
-          data.response ||
-          data.message ||
-          "I understand, but I couldn't generate a response.",
-        timestamp: new Date(),
-      };
+      let botText = "";
 
-      setMessages((prev) => [...prev, botMessage]);
+      // n8n streams newline-delimited JSON: {"type":"item","content":"token",...}
+      for (const line of responseText.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.type === "item" && parsed.content) {
+            botText += parsed.content;
+          }
+        } catch {}
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          text: botText || "I couldn't generate a response.",
+          timestamp: new Date(),
+        },
+      ]);
     } catch (error) {
-      console.error("Error sending message to n8n:", error);
+      console.error("[Chatbot] error:", error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
