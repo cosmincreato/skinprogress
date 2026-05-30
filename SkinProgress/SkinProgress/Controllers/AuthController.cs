@@ -224,6 +224,33 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Resend confirmation email to unconfirmed user.
+    /// Rate-limited: one resend per 5 minutes.
+    /// </summary>
+    [HttpPost("email/resend-confirmation")]
+    public async Task<IActionResult> ResendConfirmation([FromBody] ResendConfirmationRequestDto request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            await _emailConfirmationService.ResendConfirmationEmailAsync(request.Email, _emailService);
+
+            return Ok(new { message = "If an unconfirmed account exists for that email, a new code has been sent." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Resend confirmation error: {ex.Message}");
+            return StatusCode(500, new { message = "An error occurred. Please try again later." });
+        }
+    }
+
+    /// <summary>
     /// Request password reset token.
     /// Sends password reset link to user's email.
     /// Does not reveal whether email exists for security.

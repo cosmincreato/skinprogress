@@ -5,10 +5,11 @@ from io import BytesIO
 from typing import Dict
 from dotenv import load_dotenv, find_dotenv
 import cv2
+import mediapipe as mp
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image
-import mediapipe as mp
+
 from transformers import pipeline
 from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
@@ -38,6 +39,15 @@ HEATMAP_NEGATIVE_LABEL = "clear healthy skin"
 FACE_EXPAND_X = 0.1
 FACE_EXPAND_Y_TOP = 0.15
 FACE_EXPAND_Y_BOTTOM = 0.25
+FACE_SILHOUETTE_INDICES = [
+    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+    172,  58, 132,  93, 234, 127, 162,  21,  54, 103,  67, 109,
+]
+NOSE_NOSTRIL_INDICES = [
+    1, 2, 4, 5, 19, 48, 49, 64, 94, 97, 98, 115, 125, 129, 131,
+    279, 278, 294, 326, 327, 344, 358, 360,
+]
 
 MODEL_BACKEND = os.getenv("MODEL_BACKEND", "acne_severity").strip().lower()
 HEATMAP_ENABLED = os.getenv("HEATMAP_ENABLED", "1").strip().lower() in {
@@ -58,6 +68,8 @@ CLIP_MODEL_ID = os.getenv("CLIP_MODEL_ID", "openai/clip-vit-base-patch32").strip
 ACNE_MODEL_ID = os.getenv("ACNE_MODEL_ID", "imfarzanansari/skintelligent-acne").strip()
 ACNE_DETECT_MODEL_REPO = os.getenv("ACNE_DETECT_MODEL_REPO", "Tinny-Robot/acne").strip()
 ACNE_DETECT_MODEL_FILE = os.getenv("ACNE_DETECT_MODEL_FILE", "acne.pt").strip()
+FACE_LANDMARKER_MODEL_REPO = os.getenv("FACE_LANDMARKER_MODEL_REPO", "google/mediapipe").strip()
+FACE_LANDMARKER_MODEL_FILE = os.getenv("FACE_LANDMARKER_MODEL_FILE", "face_landmarker.task").strip()
 ACNE_DETECT_CONF = float(os.getenv("ACNE_DETECT_CONF", "0.05"))
 ACNE_DETECT_IOU = float(os.getenv("ACNE_DETECT_IOU", "0.55"))
 ACNE_DETECT_MAX_DET = int(os.getenv("ACNE_DETECT_MAX_DET", "250"))
@@ -67,7 +79,8 @@ UNIFORM_FACE_ALPHA = int(os.getenv("UNIFORM_FACE_ALPHA", "120"))
 _clip_classifier = None
 _acne_classifier = None
 _acne_detector = None
-_face_mesh = None
+_face_landmarker = None
+_face_landmarker_lock = threading.Lock()
 
 
 def _get_clip_classifier():
@@ -107,32 +120,105 @@ def _get_acne_detector():
     return _acne_detector
 
 
-def _get_face_mesh():
-    global _face_mesh
-    if _face_mesh is None:
-        _face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
-    return _face_mesh
+def _get_face_landmarker():
+    global _face_landmarker
+    if _face_landmarker is not None:
+        return _face_landmarker
+    with _face_landmarker_lock:
+        if _face_landmarker is not None:
+            return _face_landmarker
+
+        # Try HuggingFace Hub first (if repo configured), fall back to Google CDN
+        model_path = None
+        if FACE_LANDMARKER_MODEL_REPO:
+            try:
+                model_path = hf_hub_download(
+                    repo_id=FACE_LANDMARKER_MODEL_REPO,
+                    filename=FACE_LANDMARKER_MODEL_FILE,
+                )
+            except Exception as e:
+                print(f"WARNING: hf_hub_download failed ({e}), trying Google CDN", flush=True)
+        if model_path is None:
+            try:
+                import urllib.request
+                import tempfile
+                url = (
+                    "https://storage.googleapis.com/mediapipe-models/"
+                    "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+                )
+                cache_dir = os.path.join(tempfile.gettempdir(), "mediapipe_models")
+                os.makedirs(cache_dir, exist_ok=True)
+                model_path = os.path.join(cache_dir, "face_landmarker.task")
+                if not os.path.exists(model_path):
+                    with urllib.request.urlopen(url, timeout=30) as resp:
+                        with open(model_path, "wb") as f:
+                            f.write(resp.read())
+            except Exception as e2:
+                print(f"WARNING: CDN download also failed ({e2})", flush=True)
+                return None
+
+        try:
+            from mediapipe.tasks import python as _mp_python
+            from mediapipe.tasks.python import vision as _mp_vision
+            base_options = _mp_python.BaseOptions(model_asset_path=model_path)
+            options = _mp_vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                num_faces=1,
+                min_face_detection_confidence=0.3,
+                min_face_presence_confidence=0.3,
+                min_tracking_confidence=0.3,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+            )
+            _face_landmarker = _mp_vision.FaceLandmarker.create_from_options(options)
+        except Exception as e:
+            print(f"WARNING: FaceLandmarker init failed: {e}", flush=True)
+
+    return _face_landmarker
 
 
 def _face_landmarks_xy(image: Image.Image) -> np.ndarray | None:
     """Returns (N,2) array of landmark pixel coords, or None."""
-    img_rgb = np.array(image)
-    res = _get_face_mesh().process(img_rgb)
-    if not res.multi_face_landmarks:
+    landmarker = _get_face_landmarker()
+    if landmarker is None:
         return None
-    lm = res.multi_face_landmarks[0].landmark
-    w, h = image.size
-    pts = np.zeros((len(lm), 2), dtype=np.int32)
-    for i, p in enumerate(lm):
-        pts[i, 0] = int(np.clip(p.x * w, 0, w - 1))
-        pts[i, 1] = int(np.clip(p.y * h, 0, h - 1))
-    return pts
+    try:
+        w, h = image.size
+        img_rgb = np.array(image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+        result = landmarker.detect(mp_image)
+
+        if not result.face_landmarks:
+            # Right-facing profiles often fail — try horizontally flipped, then mirror x back
+            print("DEBUG: FaceLandmarker found no face, retrying with flipped image", flush=True)
+            img_flipped = np.fliplr(img_rgb).copy()
+            mp_image_flipped = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_flipped)
+            result = landmarker.detect(mp_image_flipped)
+            if not result.face_landmarks:
+                return None
+            lms = result.face_landmarks[0]
+            pts = np.array(
+                [
+                    [int(np.clip((1.0 - lm.x) * w, 0, w - 1)), int(np.clip(lm.y * h, 0, h - 1))]
+                    for lm in lms
+                ],
+                dtype=np.int32,
+            )
+            print("DEBUG: Flipped detection succeeded, mirrored landmarks back", flush=True)
+            return pts
+
+        lms = result.face_landmarks[0]
+        pts = np.array(
+            [
+                [int(np.clip(lm.x * w, 0, w - 1)), int(np.clip(lm.y * h, 0, h - 1))]
+                for lm in lms
+            ],
+            dtype=np.int32,
+        )
+        return pts
+    except Exception as e:
+        print(f"WARNING: FaceLandmarker detection failed: {e}", flush=True)
+        return None
 
 
 def _mask_from_polygon(
@@ -237,6 +323,7 @@ def _startup_preload_models():
         try:
             _get_clip_classifier()
             _get_acne_classifier()
+            _get_face_landmarker()
             if HEATMAP_BACKEND == "yolo_acne":
                 _get_acne_detector()
         except Exception:
@@ -640,9 +727,18 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
         image,
     )
 
+    # Crop to face region — YOLO only sees the face, not hands/hair/background
+    crop_left, crop_top = focus_left, focus_top
+    face_crop = image.crop((crop_left, crop_top, focus_right, focus_bottom))
+    crop_w, crop_h = face_crop.size
+    if crop_w < 8 or crop_h < 8:
+        print("WARNING: Face crop too small, running YOLO on full image", flush=True)
+        face_crop = image
+        crop_left, crop_top = 0, 0
+
     detector = _get_acne_detector()
     results = detector.predict(
-        np.array(image),
+        np.array(face_crop),
         verbose=False,
         conf=ACNE_DETECT_CONF,
         iou=ACNE_DETECT_IOU,
@@ -678,8 +774,9 @@ def _build_acne_yolo_heatmap_overlay(image: Image.Image) -> str | None:
     if not use_color_fallback:
         for i in range(det_count):
             x1, y1, x2, y2 = [float(v) for v in xyxy[i].tolist()]
-            cx = int((x1 + x2) / 2)
-            cy = int((y1 + y2) / 2)
+            # Offset crop-relative coordinates back to full image space
+            cx = int((x1 + x2) / 2) + crop_left
+            cy = int((y1 + y2) / 2) + crop_top
             bw = max(2.0, x2 - x1)
             bh = max(2.0, y2 - y1)
             radius = max(6.0, 0.5 * (bw + bh) * 0.5 * ACNE_HEATMAP_RADIUS_RATIO)
@@ -832,10 +929,169 @@ def _build_uniform_face_overlay(image: Image.Image) -> str | None:
     return _to_png_data_url(composite)
 
 
+def _build_composite_heatmap_overlay_and_metadata(
+    image: Image.Image,
+) -> tuple[str | None, list[dict]]:
+    """
+    Builds detection metadata for all conditions (acne, redness, under-eye bags)
+    and returns the standard acne heatmap overlay with detection metadata for hover tooltips.
+    Returns (data_url_or_None, detections_list).
+    """
+    w, h = image.size
+    detections: list[dict] = []
+
+    # Detection thresholds for zone detection
+    REDNESS_DETECTION_THRESHOLD = 0.3
+    UNDEREYE_DETECTION_THRESHOLD = 0.3
+
+    # Build detection metadata for all conditions
+    # Redness zone detection
+    try:
+        redness_heat = _build_redness_heatmap(image)
+        zone_mask = redness_heat > REDNESS_DETECTION_THRESHOLD
+        if zone_mask.any():
+            ys, xs = np.where(zone_mask)
+            detections.append({
+                "condition": "redness", "type": "zone",
+                "x1": int(xs.min()), "y1": int(ys.min()),
+                "x2": int(xs.max()), "y2": int(ys.max()),
+                "severity": float(np.clip(redness_heat[zone_mask].mean(), 0, 1)),
+            })
+    except Exception as e:
+        print(f"WARNING: redness detection failed: {e}", flush=True)
+
+    # Under-eye bags zone detection
+    try:
+        undereye_heat = _build_under_eye_heatmap(image)
+        zone_mask = undereye_heat > UNDEREYE_DETECTION_THRESHOLD
+        if zone_mask.any():
+            ys, xs = np.where(zone_mask)
+            detections.append({
+                "condition": "under_eye_bags", "type": "zone",
+                "x1": int(xs.min()), "y1": int(ys.min()),
+                "x2": int(xs.max()), "y2": int(ys.max()),
+                "severity": float(np.clip(undereye_heat[zone_mask].mean(), 0, 1)),
+            })
+    except Exception as e:
+        print(f"WARNING: under-eye detection failed: {e}", flush=True)
+
+    # Use the standard acne heatmap overlay (green→yellow→red gradient)
+    # with acne spot detection metadata added
+    face_mask = _build_face_focus_mask(w, h, image)
+    skin_mask = _build_skin_mask(image)
+    y_indices, x_indices = np.ogrid[:h, :w]
+
+    try:
+        focus_left, focus_top, focus_right, focus_bottom = _get_face_focus_bounds(w, h, image)
+        crop_left, crop_top = focus_left, focus_top
+        face_crop = image.crop((crop_left, crop_top, focus_right, focus_bottom))
+        if face_crop.size[0] < 8 or face_crop.size[1] < 8:
+            face_crop, crop_left, crop_top = image, 0, 0
+
+        acne_heat = np.zeros((h, w), dtype=np.float32)
+        det_count = 0
+        yolo_xyxy, yolo_conf = None, None
+
+        detector = _get_acne_detector()
+        results = detector.predict(
+            np.array(face_crop), verbose=False,
+            conf=ACNE_DETECT_CONF, iou=ACNE_DETECT_IOU, max_det=ACNE_DETECT_MAX_DET,
+        )
+        if results:
+            boxes = getattr(results[0], "boxes", None)
+            if boxes is not None and getattr(boxes, "xyxy", None) is not None:
+                yolo_xyxy = boxes.xyxy
+                yolo_conf = getattr(boxes, "conf", None)
+                det_count = int(yolo_xyxy.shape[0]) if hasattr(yolo_xyxy, "shape") else 0
+
+        use_color = det_count == 0
+        if not use_color:
+            for i in range(det_count):
+                x1, y1, x2, y2 = [float(v) for v in yolo_xyxy[i].tolist()]
+                cx = int((x1 + x2) / 2) + crop_left
+                cy = int((y1 + y2) / 2) + crop_top
+                bw, bh = max(2.0, x2 - x1), max(2.0, y2 - y1)
+                radius = max(6.0, 0.5 * (bw + bh) * 0.5 * ACNE_HEATMAP_RADIUS_RATIO)
+                sigma = max(6.0, radius / 1.8)
+                c = float(yolo_conf[i]) if yolo_conf is not None else 0.6
+                intensity = float(np.clip(c, 0.15, 1.0))
+                d2 = (x_indices - cx) ** 2 + (y_indices - cy) ** 2
+                acne_heat = np.maximum(acne_heat, (intensity * np.exp(-d2 / (2 * sigma**2))).astype(np.float32))
+                detections.append({
+                    "condition": "acne", "type": "spot",
+                    "x": cx, "y": cy,
+                    "radius": max(6, int(0.5 * (bw + bh) * 0.5)),
+                    "severity": float(np.clip(c, 0, 1)),
+                })
+
+        if use_color:
+            blemishes = _detect_blemishes_by_color(image, skin_mask, face_mask)
+            for b in blemishes:
+                cx, cy = int(b["cx"]), int(b["cy"])
+                sev = float(b.get("severity", 0.5))
+                sigma = 18.0
+                d2 = (x_indices - cx) ** 2 + (y_indices - cy) ** 2
+                acne_heat = np.maximum(acne_heat, (sev * np.exp(-d2 / (2 * sigma**2))).astype(np.float32))
+                detections.append({
+                    "condition": "acne", "type": "spot",
+                    "x": cx, "y": cy,
+                    "radius": max(6, int(b.get("radius", 8))),
+                    "severity": float(np.clip(sev, 0, 1)),
+                })
+
+        acne_heat *= face_mask * skin_mask
+    except Exception as e:
+        print(f"WARNING: acne detection failed: {e}", flush=True)
+        acne_heat = np.zeros((h, w), dtype=np.float32)
+
+    # Render using standard gradient overlay
+    heatmap_overlay_url = _safe_build_heatmap_overlay(image, "acne") if acne_heat.max() > 0 else None
+    return heatmap_overlay_url, detections
+
+
+def _build_face_silhouette_mask(
+    image_width: int, image_height: int, pts: np.ndarray
+) -> np.ndarray:
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    # pts is expected to be the 478-landmark array from _face_landmarks_xy
+    sil_pts = pts[FACE_SILHOUETTE_INDICES]
+    cv2.fillPoly(mask, [sil_pts.astype(np.int32)], 1.0)
+    blur_kernel = max(21, (min(image_width, image_height) // 20) | 1)
+    mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
+    return np.clip(mask, 0.0, 1.0)
+
+
+def _build_nostril_exclusion_mask(
+    image_width: int, image_height: int, pts: np.ndarray
+) -> np.ndarray:
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    # pts is expected to be the 478-landmark array from _face_landmarks_xy
+    nostril_pts = pts[NOSE_NOSTRIL_INDICES]
+    hull = cv2.convexHull(nostril_pts.astype(np.int32))
+    cv2.fillPoly(mask, [hull.reshape(-1, 2)], 1.0)
+    # Use same kernel size as silhouette mask so subtraction is strong enough
+    blur_kernel = max(21, (min(image_width, image_height) // 20) | 1)
+    mask = cv2.GaussianBlur(mask, (blur_kernel, blur_kernel), sigmaX=0)
+    return np.clip(mask, 0.0, 1.0)
+
+
 def _detect_face_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
+    # Try MediaPipe face mesh first — handles frontal and side-facing photos
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        iw, ih = image.size
+        x1 = int(np.clip(pts[:, 0].min(), 0, iw - 1))
+        y1 = int(np.clip(pts[:, 1].min(), 0, ih - 1))
+        x2 = int(np.clip(pts[:, 0].max(), 0, iw - 1))
+        y2 = int(np.clip(pts[:, 1].max(), 0, ih - 1))
+        fw, fh = x2 - x1, y2 - y1
+        if fw >= 20 and fh >= 20:
+            print(f"DEBUG: MediaPipe face bbox: x={x1}, y={y1}, w={fw}, h={fh}")
+            return x1, y1, fw, fh
+
+    # Fall back to Haar cascade for frontal faces
     image_rgb = np.array(image)
     image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml",
     )
@@ -845,10 +1101,8 @@ def _detect_face_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
         minNeighbors=5,
         minSize=(48, 48),
     )
-
     if faces is None or len(faces) == 0:
         return None
-
     largest = max(faces, key=lambda item: item[2] * item[3])
     x, y, w, h = [int(value) for value in largest]
     return x, y, w, h
@@ -859,8 +1113,16 @@ def _build_face_focus_mask(
     image_height: int,
     image: Image.Image,
 ) -> np.ndarray:
-    mask = np.zeros((image_height, image_width), dtype=np.float32)
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        silhouette = _build_face_silhouette_mask(image_width, image_height, pts)
+        nostril = _build_nostril_exclusion_mask(image_width, image_height, pts)
+        mask = np.clip(silhouette - nostril, 0.0, 1.0)
+        if mask.max() > 0:
+            return mask
 
+    # Fallback: Haar bbox or center ellipse
+    mask = np.zeros((image_height, image_width), dtype=np.float32)
     bbox = _detect_face_bbox(image)
     if bbox is not None:
         x, y, w, h = bbox
@@ -869,10 +1131,8 @@ def _build_face_focus_mask(
         top = max(0, int(y - h * FACE_EXPAND_Y_TOP))
         bottom = min(image_height, int(y + h + h * FACE_EXPAND_Y_BOTTOM))
         print(
-            f"DEBUG: Haar face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
+            f"DEBUG: Face bbox: x={x}, y={y}, w={w}, h={h}, expanded: left={left}, top={top}, right={right}, bottom={bottom}"
         )
-        # Use an ellipse instead of a hard rectangle to avoid "boxy" overlays.
-        # This keeps the focus mask face-shaped even when the Haar bbox includes hair/background.
         cx = int((left + right) / 2)
         cy = int((top + bottom) / 2)
         ax = max(1, int((right - left) / 2))
@@ -884,7 +1144,6 @@ def _build_face_focus_mask(
         center_y = int(image_height * 0.42)
         radius_x = int(image_width * 0.22)
         radius_y = int(image_height * 0.30)
-
         y_indices, x_indices = np.ogrid[:image_height, :image_width]
         ellipse = (
             ((x_indices - center_x) ** 2) / max(radius_x**2, 1)
@@ -902,6 +1161,17 @@ def _get_face_focus_bounds(
     image_height: int,
     image: Image.Image,
 ) -> tuple[int, int, int, int]:
+    pts = _face_landmarks_xy(image)
+    if pts is not None:
+        sil_pts = pts[FACE_SILHOUETTE_INDICES]
+        left = int(np.clip(sil_pts[:, 0].min(), 0, image_width - 1))
+        right = int(np.clip(sil_pts[:, 0].max(), 0, image_width - 1))
+        top = int(np.clip(sil_pts[:, 1].min(), 0, image_height - 1))
+        bottom = int(np.clip(sil_pts[:, 1].max(), 0, image_height - 1))
+        if right > left and bottom > top:
+            return left, top, right, bottom
+
+    # Fallback: Haar bbox or center ellipse
     bbox = _detect_face_bbox(image)
     if bbox is not None:
         x, y, w, h = bbox
@@ -961,9 +1231,10 @@ def _safe_build_heatmap_overlay(image: Image.Image, condition_key: str) -> str |
             result = _build_acne_yolo_heatmap_overlay(image)
             if result is None:
                 print(
-                    f"WARNING: _build_acne_yolo_heatmap_overlay returned None",
+                    "WARNING: yolo_acne returned None, returning original photo",
                     flush=True,
                 )
+                return _to_png_data_url(image)
             return result
         return _build_heatmap_overlay(image, condition_key)
     except Exception as e:
@@ -1027,11 +1298,13 @@ def analyze_set(
             # even when the top label is "redness" or "under_eye_bags".
             heatmap_target = "acne"
 
-        heatmap_overlay_data_url = (
-            _safe_build_heatmap_overlay(image, heatmap_target)
-            if HEATMAP_ENABLED
-            else None
-        )
+        detections: list[dict] = []
+        if HEATMAP_ENABLED and HEATMAP_BACKEND == "yolo_acne":
+            heatmap_overlay_data_url, detections = _build_composite_heatmap_overlay_and_metadata(image)
+        elif HEATMAP_ENABLED:
+            heatmap_overlay_data_url = _safe_build_heatmap_overlay(image, heatmap_target)
+        else:
+            heatmap_overlay_data_url = None
 
         per_angle[angle] = {
             "label": label,
@@ -1039,6 +1312,7 @@ def analyze_set(
             "scores": scores,
             "heatmap_target": heatmap_target,
             "heatmap_overlay_data_url": heatmap_overlay_data_url,
+            "detections": detections,
         }
 
         for key in overall_scores:

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SkinProgress.Models;
 using SkinProgress.Models.DTOs;
 using SkinProgress.Services;
 using SkinProgress.Services.Interfaces;
@@ -50,22 +51,26 @@ public class PhotoController : ControllerBase
 
             _logger.LogInformation("Photo uploaded: {photoId}", result.PhotoId);
 
-            // Store photo upload activity in Qdrant
-            try
+            // Fire-and-forget: Log selfie_taken event to Qdrant
+            _ = Task.Run(async () =>
             {
-                var eventData = new Dictionary<string, string>
+                try
                 {
-                    { "photo_id", result.PhotoId.ToString() },
-                    { "view_type", result.ViewType ?? "unknown" }
-                };
-
-                await _qdrantService.StoreUserActivityAsync(userId.ToString(), "photo_upload", eventData);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error storing photo upload in Qdrant: {Message}", ex.Message);
-                // Don't throw - Qdrant failure shouldn't block photo upload
-            }
+                    await _qdrantService.LogActivityEventAsync(
+                        userId.ToString(),
+                        new SelfieTakenEvent
+                        {
+                            PhotoId = result.PhotoId,
+                            CaptureAngles = [result.ViewType ?? "front"],
+                            Timestamp = DateTime.UtcNow
+                        }
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error logging selfie_taken event");
+                }
+            });
 
             return Ok(result);
         }

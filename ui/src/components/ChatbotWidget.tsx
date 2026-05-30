@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { isAuthenticated } from "../services/authService";
+import { isAuthenticated, getUserId } from "../services/authService";
 
 interface Message {
   id: string;
@@ -19,6 +19,7 @@ export function ChatbotWidget() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionId = useRef(`session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const n8nWebhookUrl =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
@@ -49,32 +50,41 @@ export function ChatbotWidget() {
     try {
       const response = await fetch(n8nWebhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: inputValue,
-          timestamp: new Date().toISOString(),
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatInput: inputValue, sessionId: sessionId.current, userId: getUserId() }),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log("[Chatbot] n8n raw response:", responseText.slice(0, 1000));
 
-      // Add bot response
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "bot",
-        text: data.response || data.message || "I understand, but I couldn't generate a response.",
-        timestamp: new Date(),
-      };
+      let botText = "";
 
-      setMessages((prev) => [...prev, botMessage]);
+      // n8n streams newline-delimited JSON: {"type":"item","content":"token",...}
+      for (const line of responseText.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.type === "item" && parsed.content) {
+            botText += parsed.content;
+          }
+        } catch {}
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          text: botText || "I couldn't generate a response.",
+          timestamp: new Date(),
+        },
+      ]);
     } catch (error) {
-      console.error("Error sending message to n8n:", error);
+      console.error("[Chatbot] error:", error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -96,7 +106,9 @@ export function ChatbotWidget() {
         <div className="bg-slate-900 border border-pink-400/40 rounded-2xl shadow-2xl w-96 h-96 flex flex-col mb-4">
           {/* Header */}
           <div className="bg-gradient-to-r from-pink-500 to-pink-400 px-6 py-4 rounded-t-2xl flex items-center justify-between">
-            <h3 className="text-white font-semibold flex items-center gap-2">🌸 Bloom</h3>
+            <h3 className="text-white font-semibold flex items-center gap-2">
+              🌸 Bloom
+            </h3>
             <button
               onClick={() => setIsOpen(false)}
               className="text-white hover:bg-white/20 p-1 rounded transition"
@@ -161,9 +173,18 @@ export function ChatbotWidget() {
               <div className="flex justify-start">
                 <div className="bg-slate-700 text-on-surface px-4 py-2 rounded-lg rounded-bl-none">
                   <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                    <div className="w-2 h-2 bg-on-surface rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    ></div>
                   </div>
                 </div>
               </div>
@@ -210,7 +231,7 @@ export function ChatbotWidget() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center"
+        className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center ml-80"
       >
         {isOpen ? (
           <svg
@@ -227,11 +248,7 @@ export function ChatbotWidget() {
             />
           </svg>
         ) : (
-          <svg
-            className="w-6 h-6"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
           </svg>
         )}

@@ -1,0 +1,207 @@
+{
+  "name": "SkinProgress RAG",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "",
+        "options": {
+          "subtitle": "Bloom AI",
+          "title": "Bloom AI",
+          "responseMode": "streaming"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        3056,
+        768
+      ],
+      "id": "ce84b92e-e577-4980-9d0f-b9f5ededfe2c",
+      "name": "When chat message received",
+      "webhookId": "23a6bc03-c48c-4ac5-a90a-f779b2793037"
+    },
+    {
+      "parameters": {
+        "content": "### Send Chat Message\n\nAsk a question and receive an answer based on the knowledge base",
+        "height": 112,
+        "width": 304
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2656,
+        768
+      ],
+      "id": "ec3f82d6-798b-40e1-909d-e245e50b1741",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=You are Bloom, a warm and caring skincare companion inside the SkinProgress app. You know the user's skin journey — their daily habits, selfie history, and analysis results — and you use that context to give personal, thoughtful answers.\n\nTone rules:\n- Talk like a knowledgeable friend, not a customer support bot\n- Never mention technical details like tool names, function calls, vector stores, or databases\n- Never say things like \"I called a function\" or \"the results returned\" — just answer naturally\n- Keep responses concise and conversational unless the user asks for detail\n- If you don't have enough data to answer, say so simply and suggest what they could do (e.g. log more habits, take a selfie)\n- Use light encouragement — celebrate streaks, acknowledge effort, stay positive without being over the top\n\nWhat you can help with:\n- Reviewing the user's habit history and streaks\n- Commenting on skin analysis trends (acne, redness, under-eye bags)\n- Giving skincare tips tailored to what you see in their data\n- Motivating them to stay consistent with their routine\n\nExample of bad response: \"The Qdrant Vector Store returned 3 results. Based on the retrieved documents, your habit completion rate is 67%.\"\nExample of good response: \"You've been pretty consistent this week! Looks like you're hitting most of your habits — keep that up and your skin will thank you. 🌿\"\n",
+          "returnIntermediateSteps": false,
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        3328,
+        768
+      ],
+      "id": "8b5678c2-02c7-4ee9-92aa-954e2c175398",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        3392,
+        1008
+      ],
+      "id": "1fe85d53-86a7-46f7-9e78-99a21b86a206",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "MANDATORY: Use this tool to search for information about the user's activity history (daily habits done, selfies taken, selfies analyzed). ",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "skinprogress_activity_log",
+          "mode": "list",
+          "cachedResultName": "skinprogress_activity_log"
+        },
+        "topK": 20,
+        "options": {
+          "searchFilterJson": "{\n  \"must\": [\n    {\n      \"key\": \"user_id\",\n      \"match\": {\n        \"value\": \"={{ $('When chat message received').item.json.userId }}\"\n      }\n    }\n  ]\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        3616,
+        992
+      ],
+      "id": "52c7a225-ff3b-47fc-86b2-6cc413b398c7",
+      "name": "Qdrant Vector Store",
+      "credentials": {
+        "qdrantApi": {
+          "id": "Vssi1MfbCVlsUtmf",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        3168,
+        1008
+      ],
+      "id": "3c63bac5-a611-4b3a-84c4-ddbf83a45af7",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "OFhoaKjokANcq2Pb",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mxbai-embed-large:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        3616,
+        1152
+      ],
+      "id": "4075fa15-5c5b-4dd3-8638-dc584c43d72e",
+      "name": "Embeddings Ollama",
+      "credentials": {
+        "ollamaApi": {
+          "id": "1g4FMCTZKLq1K2oV",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "58920e4d-0667-4253-9f16-1a53616167bd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe8451b054d84619ebe89d441ff72a20160793386428985f7ef471dcfb9db472"
+  },
+  "id": "pwTBrMM4wXkzJCRL",
+  "tags": []
+}

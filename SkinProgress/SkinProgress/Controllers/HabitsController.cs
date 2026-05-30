@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SkinProgress.Data;
+using SkinProgress.Models;
 using SkinProgress.Models.Entities;
 using SkinProgress.Services.Interfaces;
 using System.Security.Claims;
@@ -15,11 +17,13 @@ public class HabitsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IQdrantService _qdrantService;
+    private readonly ILogger<HabitsController> _logger;
 
-    public HabitsController(AppDbContext context, IQdrantService qdrantService)
+    public HabitsController(AppDbContext context, IQdrantService qdrantService, ILogger<HabitsController> logger)
     {
         _context = context;
         _qdrantService = qdrantService;
+        _logger = logger;
     }
 
     private Guid GetUserId()
@@ -107,25 +111,37 @@ public class HabitsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        // Store habit completion activity in Qdrant
+        // Fire when all 3 required habits are completed today (upserts via deterministic point ID)
         try
         {
-            var todayCompletions = await _context.HabitCompletions
+            string[] requiredHabits = { "Cleanse", "Hydrate", "SPF" };
+
+            var todayCompletedNames = await _context.HabitCompletions
                 .Where(hc => hc.UserId == userId && hc.Date.Date == today)
-                .CountAsync();
+                .Include(hc => hc.HabitDefinition)
+                .Select(hc => hc.HabitDefinition!.Name)
+                .ToListAsync();
 
-            var eventData = new Dictionary<string, string>
+            _logger.LogInformation("Habit check: completed today for user {UserId}: {Names}",
+                userId, string.Join(", ", todayCompletedNames));
+
+            if (requiredHabits.All(h => todayCompletedNames.Contains(h)))
             {
-                { "habit_name", request.HabitName },
-                { "habit_count", todayCompletions.ToString() }
-            };
+                _logger.LogInformation("All required habits complete — firing QuestLockInEvent for user {UserId}", userId);
 
-            await _qdrantService.StoreUserActivityAsync(userId.ToString(), "habit_completion", eventData);
+                _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
+                    userId.ToString(),
+                    new QuestLockInEvent
+                    {
+                        HabitNames = requiredHabits,
+                        Timestamp = DateTime.UtcNow
+                    }
+                ));
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error storing habit completion in Qdrant: {ex.Message}");
-            // Don't throw - Qdrant failure shouldn't block habit tracking
+            _logger.LogWarning(ex, "Error logging quest lock-in event");
         }
 
         return Ok();

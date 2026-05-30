@@ -46,6 +46,15 @@ public record ConfirmEmailRequestDto(
 );
 
 /// <summary>
+/// Request DTO for resending confirmation email.
+/// </summary>
+public record ResendConfirmationRequestDto(
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email format")]
+    string Email
+);
+
+/// <summary>
 /// Request DTO for password reset token generation.
 /// </summary>
 public record PasswordResetRequestDto(

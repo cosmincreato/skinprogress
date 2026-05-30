@@ -439,104 +439,6 @@ public class UsersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Gets personalized skincare recommendations based on latest analysis and historical trends.
-    /// Uses Qdrant RAG pipeline to generate context-aware recommendations.
-    /// </summary>
-    [HttpGet("{id}/recommendations")]
-    [Authorize]
-    public async Task<IActionResult> GetRecommendations(Guid id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            // Get the latest analysis for this user
-            var latestAnalysis = await _context.AnalysisResults
-                .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
-                .OrderByDescending(ar => ar.Timestamp)
-                .FirstOrDefaultAsync();
-
-            if (latestAnalysis == null)
-            {
-                return Ok(new { message = "No completed analyses found. Analyze your selfies to get recommendations.", recommendations = new List<object>() });
-            }
-
-            var recommendations = await _qdrantService.GenerateRecommendationsAsync(id.ToString(), latestAnalysis);
-            return Ok(new { analysisDate = latestAnalysis.Timestamp, recommendations });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GetRecommendations error: {ex.Message}");
-            return StatusCode(500, new { message = "Error retrieving recommendations", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Gets analysis history stored in Qdrant vector database.
-    /// Used for RAG pipeline and historical pattern analysis.
-    /// </summary>
-    [HttpGet("{id}/analysis-history")]
-    [Authorize]
-    public async Task<IActionResult> GetAnalysisHistory(Guid id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var history = await _qdrantService.GetUserAnalysisHistoryAsync(id.ToString());
-            return Ok(new { count = history.Count, analyses = history });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GetAnalysisHistory error: {ex.Message}");
-            return StatusCode(500, new { message = "Error retrieving analysis history", error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Stores user lifestyle context (habits, routines, etc.) for recommendation personalization.
-    /// </summary>
-    [HttpPost("{id}/user-context")]
-    [Authorize]
-    public async Task<IActionResult> StoreUserContext(Guid id, [FromBody] Dictionary<string, string> contextData)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-        if (currentUserRole != UserRoles.Admin && currentUserId != id.ToString())
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            if (contextData == null || contextData.Count == 0)
-            {
-                return BadRequest(new { message = "Context data is required" });
-            }
-
-            await _qdrantService.StoreUserContextAsync(id.ToString(), contextData);
-            return Ok(new { message = "User context stored successfully" });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"StoreUserContext error: {ex.Message}");
-            return StatusCode(500, new { message = "Error storing user context", error = ex.Message });
-        }
-    }
 
     // DELETE: api/users/{id}
     // Admins can delete anyone; Users can only delete themselves
@@ -858,13 +760,10 @@ public class UsersController : ControllerBase
         }
 
         if (heatmapUrls.Count == 0)
-        {
-            Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle");
-            return heatmapUrls;
-        }
+            Console.WriteLine("SaveAnalysisHeatmapAsync - No valid heatmaps found for any angle; analysis scores will still be persisted");
 
-        // Persist to DB and Qdrant. These are non-critical for the current response —
-        // if they fail the heatmap URLs are still returned to the caller.
+        // Persist to DB and Qdrant — always run regardless of whether heatmaps were saved.
+        // Analysis scores must survive a page refresh even when heatmap generation fails.
         try
         {
             var acneSeverity = ExtractSeverityScore(analysisJson, "acne");
@@ -885,27 +784,36 @@ public class UsersController : ControllerBase
                 HeatmapFrontUrl = heatmapUrls.GetValueOrDefault("front"),
                 HeatmapLeftUrl = heatmapUrls.GetValueOrDefault("left"),
                 HeatmapRightUrl = heatmapUrls.GetValueOrDefault("right"),
+                DetectionsFrontJson = perAngleObj?["front"]?["detections"]?.ToJsonString(),
+                DetectionsLeftJson = perAngleObj?["left"]?["detections"]?.ToJsonString(),
+                DetectionsRightJson = perAngleObj?["right"]?["detections"]?.ToJsonString(),
                 CreatedAt = DateTime.UtcNow,
             };
+
+            // Query previous analysis before saving new one (needed for acne delta in text)
+            var previousAnalysis = await _context.AnalysisResults
+                .Where(ar => ar.UserId == userId.ToString() && ar.Status == "Completed")
+                .OrderByDescending(ar => ar.Timestamp)
+                .FirstOrDefaultAsync();
 
             _context.AnalysisResults.Add(analysisResult);
             await _context.SaveChangesAsync();
 
             try
             {
-                await _qdrantService.StoreAnalysisAsync(userId.ToString(), analysisResult);
+                _ = Task.Run(async () => await _qdrantService.LogActivityEventAsync(
+                    userId.ToString(),
+                    new SelfieAnalyzedEvent
+                    {
+                        AnalysisId = analysisResult.Id,
+                        AcneSeverity = analysisResult.AcneSeverity ?? 0,
+                        RednessSeverity = analysisResult.RednessSeverity ?? 0,
+                        UnderEyeBagsSeverity = analysisResult.UnderEyeBagsSeverity ?? 0,
+                        PreviousAcneSeverity = previousAnalysis?.AcneSeverity,
+                        Timestamp = analysisResult.Timestamp
+                    }
+                ));
 
-                var scoreEventData = new Dictionary<string, string>
-                {
-                    { "acne_score", analysisResult.AcneSeverity?.ToString() ?? "0" },
-                    { "redness_score", analysisResult.RednessSeverity?.ToString() ?? "0" },
-                    { "under_eye_bags_score", analysisResult.UnderEyeBagsSeverity?.ToString() ?? "0" },
-                    { "overall_score", (((analysisResult.AcneSeverity ?? 0) + (analysisResult.RednessSeverity ?? 0) + (analysisResult.UnderEyeBagsSeverity ?? 0)) / 3.0).ToString() }
-                };
-                await _qdrantService.StoreUserActivityAsync(userId.ToString(), "score_update", scoreEventData);
-
-                var recommendations = await _qdrantService.GenerateRecommendationsAsync(userId.ToString(), analysisResult);
-                Console.WriteLine($"Generated {recommendations.Count} recommendations for user {userId}");
             }
             catch (Exception ex)
             {
@@ -1012,30 +920,43 @@ public class UsersController : ControllerBase
             return Forbid();
         }
 
-        var rawAnalyses = await _context.AnalysisResults
-            .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
-            .OrderByDescending(ar => ar.Timestamp)
-            .ToListAsync();
-
-        var analyses = rawAnalyses.Select(ar => new
+        List<dynamic> analyses;
+        try
         {
-            date = ar.Timestamp.ToString("yyyy-MM-dd"),
-            acneSeverity = ar.AcneSeverity,
-            rednessSeverity = ar.RednessSeverity,
-            underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
-            inflammationSeverity = ar.InflammationSeverity,
-            foreheadSeverity = ar.ForeheadSeverity,
-            leftCheekSeverity = ar.LeftCheekSeverity,
-            rightCheekSeverity = ar.RightCheekSeverity,
-            chinSeverity = ar.ChinSeverity,
-            noseSeverity = ar.NoseSeverity,
-            heatmapImageUrl = GetFullUrl(ar.HeatmapImageUrl),
-            heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
-            heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
-            heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
-            timestamp = ar.Timestamp,
-            status = ar.Status
-        }).ToList();
+            var rawAnalyses = await _context.AnalysisResults
+                .Where(ar => ar.UserId == id.ToString() && ar.Status == "Completed")
+                .OrderByDescending(ar => ar.Timestamp)
+                .ToListAsync();
+
+            analyses = rawAnalyses.Select(ar => (dynamic)new
+            {
+                date = ar.Timestamp.ToString("yyyy-MM-dd"),
+                acneSeverity = ar.AcneSeverity,
+                rednessSeverity = ar.RednessSeverity,
+                underEyeBagsSeverity = ar.UnderEyeBagsSeverity,
+                inflammationSeverity = ar.InflammationSeverity,
+                foreheadSeverity = ar.ForeheadSeverity,
+                leftCheekSeverity = ar.LeftCheekSeverity,
+                rightCheekSeverity = ar.RightCheekSeverity,
+                chinSeverity = ar.ChinSeverity,
+                noseSeverity = ar.NoseSeverity,
+                heatmapImageUrl = GetFullUrl(ar.HeatmapImageUrl),
+                heatmapFrontUrl = GetFullUrl(ar.HeatmapFrontUrl),
+                heatmapLeftUrl = GetFullUrl(ar.HeatmapLeftUrl),
+                heatmapRightUrl = GetFullUrl(ar.HeatmapRightUrl),
+                detectionsFront = ar.DetectionsFrontJson,
+                detectionsLeft = ar.DetectionsLeftJson,
+                detectionsRight = ar.DetectionsRightJson,
+                timestamp = ar.Timestamp,
+                status = ar.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetAllAnalyses ERROR: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
 
         Console.WriteLine($"GetAllAnalyses for user {id}: Found {analyses.Count} completed analyses");
         foreach (var a in analyses)

@@ -42,6 +42,15 @@ namespace SkinProgress.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
 
+                    b.Property<string>("DetectionsFrontJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DetectionsLeftJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DetectionsRightJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");

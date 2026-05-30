@@ -94,6 +94,9 @@ builder.Services.AddHttpClient("AiAnalyzer", client =>
     client.Timeout = TimeSpan.FromMinutes(15);
 });
 
+// Register Ollama embedding service
+builder.Services.AddHttpClient<IOllamaEmbeddingService, OllamaEmbeddingService>();
+
 // Register Qdrant vector database client
 builder.Services.AddHttpClient<IQdrantService, QdrantService>();
 

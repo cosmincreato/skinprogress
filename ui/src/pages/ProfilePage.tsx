@@ -33,6 +33,8 @@ type HabitKey = "cleaning" | "hydration" | "spf";
 
 type HabitDayRecord = Record<HabitKey, boolean>;
 
+type LockState = "unchecked" | "checked" | "locked";
+
 type SelfiesApiItem = {
   url?: string;
   uploadedAt?: string;
@@ -49,6 +51,12 @@ const DAILY_HABITS: { key: HabitKey; label: string }[] = [
   { key: "hydration", label: "Hydrate" },
   { key: "spf", label: "SPF" },
 ];
+
+const HABIT_NAMES: Record<HabitKey, string> = {
+  cleaning: "Cleanse",
+  hydration: "Hydrate",
+  spf: "SPF",
+};
 
 
 
@@ -208,6 +216,9 @@ const ProfilePage = () => {
   const [habitEntries, setHabitEntries] = useState<
     Record<string, HabitDayRecord>
   >({});
+  const [habitLockState, setHabitLockState] = useState<
+    Record<HabitKey, LockState>
+  >({ cleaning: "unchecked", hydration: "unchecked", spf: "unchecked" });
   const [userBadges, setUserBadges] = useState<any[]>([]);
   const [_, setHabitsLoading] = useState(false);
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
@@ -215,7 +226,6 @@ const ProfilePage = () => {
   const currentUserId = getUserIdFromToken();
   const todayHabitKey = getTodayDateKeyUTC();
 
-  const todayHabits = habitEntries[todayHabitKey] ?? createEmptyHabitRecord();
   const completedHabitDays = Object.values(habitEntries).filter((entry) =>
     isHabitDayComplete(entry),
   ).length;
@@ -418,6 +428,14 @@ const ProfilePage = () => {
           });
 
           setHabitEntries(habitMap);
+          const todayRecord = habitMap[todayHabitKey];
+          if (todayRecord) {
+            setHabitLockState({
+              cleaning: todayRecord.cleaning ? "locked" : "unchecked",
+              hydration: todayRecord.hydration ? "locked" : "unchecked",
+              spf: todayRecord.spf ? "locked" : "unchecked",
+            });
+          }
         } catch (e) {
           console.warn("Failed to fetch habit range, using empty habits", e);
           setHabitEntries({});
@@ -461,33 +479,27 @@ const ProfilePage = () => {
     setUploadError(null);
   }, []);
 
-  const handleHabitToggle = async (habit: HabitKey) => {
-    const habitNames: Record<HabitKey, string> = {
-      cleaning: "Cleanse",
-      hydration: "Hydrate",
-      spf: "SPF",
-    };
-
-    // Update local state first for immediate UI feedback
-    setHabitEntries((prev) => {
-      const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
-      const next: Record<string, HabitDayRecord> = {
+  const handleHabitToggle = (habit: HabitKey) => {
+    setHabitLockState((prev) => {
+      if (prev[habit] === "locked") return prev;
+      return {
         ...prev,
-        [todayHabitKey]: {
-          ...current,
-          [habit]: !current[habit],
-        },
+        [habit]: prev[habit] === "checked" ? "unchecked" : "checked",
       };
-      return next;
     });
+  };
 
-    // Save to database immediately
+  const handleLockIn = async (habit: HabitKey) => {
+    setHabitLockState((prev) => ({ ...prev, [habit]: "locked" }));
     try {
-      const habitName = habitNames[habit];
-      await habitsService.completeHabit(habitName);
-      console.log("DEBUG: Saved habit:", habitName);
+      await habitsService.completeHabit(HABIT_NAMES[habit]);
+      setHabitEntries((prev) => {
+        const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
+        return { ...prev, [todayHabitKey]: { ...current, [habit]: true } };
+      });
     } catch (error) {
-      console.error("Failed to save habit:", error);
+      setHabitLockState((prev) => ({ ...prev, [habit]: "checked" }));
+      console.error("Failed to lock in habit:", error);
     }
   };
 
@@ -736,27 +748,49 @@ const ProfilePage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {DAILY_HABITS.map((habit) => {
-                const checked = todayHabits[habit.key];
+                const lockState = habitLockState[habit.key];
+                const isLocked = lockState === "locked";
+                const isChecked = lockState === "checked" || isLocked;
 
                 return (
-                  <label
+                  <div
                     key={habit.key}
-                    className={`flex items-center justify-between rounded-xl border p-4 cursor-pointer transition-colors ${
-                      checked
+                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors ${
+                      isLocked
                         ? "border-green-500/40 bg-green-500/10"
-                        : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
+                        : isChecked
+                          ? "border-amber-500/40 bg-amber-500/10"
+                          : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
                     }`}
                   >
-                    <span className="text-on-surface font-medium">
-                      {habit.label}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleHabitToggle(habit.key)}
-                      className="h-4 w-4 accent-green-500"
-                    />
-                  </label>
+                    <label
+                      className={`flex items-center justify-between ${isLocked ? "cursor-default" : "cursor-pointer"}`}
+                    >
+                      <span className="text-on-surface font-medium flex items-center gap-2">
+                        {habit.label}
+                        {isLocked && (
+                          <span className="text-xs text-green-400" aria-label="Locked">
+                            🔒
+                          </span>
+                        )}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={isLocked}
+                        onChange={() => handleHabitToggle(habit.key)}
+                        className="h-4 w-4 accent-green-500 disabled:opacity-50"
+                      />
+                    </label>
+                    {lockState === "checked" && (
+                      <button
+                        onClick={() => handleLockIn(habit.key)}
+                        className="w-full rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold py-1.5 transition-colors"
+                      >
+                        Lock In
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
