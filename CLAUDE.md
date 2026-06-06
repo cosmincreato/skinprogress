@@ -6,12 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SkinProgress** is a full-stack skin analysis and tracking application with AI-powered insights. It's a monorepo containing:
 
-- **Frontend** (`ui/`): React 19 + TypeScript + Vite + Tailwind CSS
-- **Backend** (`SkinProgress/`): .NET 9.0 + Entity Framework Core + SQL Server
+- **Frontend** (`ui/`): React 19 + TypeScript + Vite + Tailwind CSS v4
+- **Backend** (`SkinProgress/`): .NET 9.0 + EF Core + PostgreSQL (via Npgsql)
 - **AI Service** (`ai-service/`): Python FastAPI for skin condition analysis
-- **Workflows** (`n8n/`): n8n automation and chatbot integration
+- **Workflows** (`n8n/`): n8n automation and chatbot RAG integration
 
 Core features: evolution dashboard with trend visualization, PDF export, period comparison, AI-powered photo analysis (acne/redness/under-eye bags detection), photo gallery, habits tracking, badge system, chat integration with Qdrant vector search.
+
+---
 
 ## Quick Commands
 
@@ -21,36 +23,33 @@ npm install              # Install dependencies
 npm run dev              # Start Vite dev server (http://localhost:5173)
 npm run build            # Production build
 npm run lint             # Run ESLint
-npm test                 # Run Jest tests (when configured)
 ```
 
 ### Backend (`SkinProgress/`)
 ```bash
 dotnet restore           # Restore NuGet packages
 dotnet build             # Build solution
-dotnet build -c Release  # Release build
 dotnet run               # Start backend server (http://localhost:5000)
 dotnet test              # Run all tests
-dotnet ef database update # Apply pending migrations
+dotnet ef migrations add DescriptiveName  # Add migration
+dotnet ef database update                 # Apply pending migrations
 ```
 
 ### AI Service (`ai-service/`)
 ```bash
 pip install -r requirements.txt              # Install Python dependencies
-uvicorn app:app --host 0.0.0.0 --port 8001  # Start service
-# Or use Docker: docker compose up ai-analyzer
+uvicorn app:app --host 0.0.0.0 --port 8001  # Start service (run separately — not in docker-compose)
 ```
 
-### Docker (Full Stack)
+### Docker (Infrastructure Only)
+The `docker-compose.yml` runs infrastructure services only — the AI service is commented out and run separately.
 ```bash
-docker compose build     # Build all services
-docker compose up -d     # Start all services in background
+docker compose up -d     # Start postgres, redis, qdrant, n8n, ollama, mailpit
 docker compose down      # Stop all services
 docker compose logs -f   # Stream logs
 ```
 
 ### Quick Development Startup (Windows)
-Use the Makefile:
 ```bash
 make start-dev           # Opens 3 terminals for AI, Backend, Frontend
 make start-backend       # Start backend only
@@ -58,142 +57,239 @@ make start-frontend      # Start frontend only
 make start-ai            # Start AI service only
 ```
 
+---
+
+## Infrastructure
+
+All infrastructure runs via `docker-compose.yml`. The AI analyzer is run separately via uvicorn.
+
+| Container | Image | Port | Role |
+|---|---|---|---|
+| `skinprogress-db` | `postgres:latest` | `${DB_PORT}:5432` | Primary database (app + n8n share this) |
+| `skinprogress-redis` | `redis:7-alpine` | `6379` | Queue / caching for n8n |
+| `skinprogress-qdrant` | `qdrant/qdrant:latest` | `6333`, `6334` | Vector store for RAG embeddings |
+| `skinprogress-n8n` | `n8nio/n8n:latest` | `5678` | Workflow automation and chatbot |
+| `skinprogress-ollama` | `ollama/ollama:latest` | `11434` | Local LLM — `mxbai-embed-large` for embeddings |
+| `skinprogress-ollama-init` | `ollama/ollama:latest` | — | One-shot init: pulls `mxbai-embed-large` model |
+| `skinprogress-mailpit` | `axllent/mailpit:latest` | `1025` (SMTP), `8025` (UI) | Local SMTP trap for dev emails |
+
+**Note**: n8n connects to the same PostgreSQL instance as the backend (`DB_TYPE=postgresdb`, `DB_POSTGRESDB_HOST=db`). They share the database server but use logically separate tables.
+
+---
+
 ## Architecture
 
 ### Frontend (`ui/`)
 
+**Routes** (defined in `src/App.tsx`):
+- `/login`, `/register`, `/confirm-email`, `/forgot-password`, `/reset-password` — public auth routes
+- `/users/:userId` — profile page (protected)
+- `/users/:userId/gallery` — photo gallery (protected)
+- `/users/:userId/evolution` — evolution dashboard (protected)
+- `/dashboard` — redirects to `/users/:userId`
+
 **Structure**:
 ```
 src/
-├── pages/                  # Route-level components (EvolutionPage, GalleryPage, ProfilePage, etc.)
+├── pages/           # EvolutionPage, GalleryPage, ProfilePage
 ├── components/
-│   ├── evolution/         # Evolution dashboard components (TrendGraph, DateRangeFilter, ExportReportButton, PeriodComparison)
-│   ├── auth/              # Auth components (EmailLogin, EmailRegister, ConfirmEmail, ForgotPassword, ResetPassword)
-│   └── [other]            # SelfieCamera, ChatbotWidget, FaceDetectionOverlay, Face3DModel, Layout
-├── services/              # API clients and business logic (analyticsApi, authService, photoService, habitsService, faceDetectionService)
-├── types/                 # TypeScript types (evolution.ts, FaceDetection.ts)
-└── App.tsx / main.tsx    # Entry point with routing
+│   ├── evolution/   # TrendGraph, DateRangeFilter, ExportReportButton, PeriodComparison
+│   ├── auth/        # EmailLogin, EmailRegister, ConfirmEmail, ForgotPassword, ResetPassword
+│   └── [other]      # SelfieCamera, ChatbotWidget, FaceDetectionOverlay, Face3DModel, Layout
+├── services/        # API clients (analyticsApi, authService, photoService, habitsService, faceDetectionService)
+├── types/           # TypeScript types (evolution.ts, FaceDetection.ts)
+└── App.tsx / main.tsx
 ```
 
-**Key Technologies**:
-- **React Router v7** for routing (`/evolution`, `/gallery`, `/profile`, etc.)
-- **Recharts** for interactive trend graphs (line, bar charts for metrics over time)
-- **Tailwind CSS v4** for styling
-- **TypeScript ~5.9** for type safety
-- **Three.js** for 3D face model visualization
-- **html2pdf.js** for PDF export
-- **TensorFlow.js + Face-API** for client-side face detection (coordinates, landmarks)
-- **Axios** for HTTP requests with JWT bearer token auth
+**Dependencies** (from `package.json`):
 
-**Authentication Flow**: Google OAuth or email-based (JWT tokens stored, sent as Bearer header in all API requests).
+| Package | Version | Purpose |
+|---|---|---|
+| `react` | ^19.2.0 | UI framework |
+| `react-dom` | ^19.2.0 | DOM rendering |
+| `react-router-dom` | ^7.13.0 | Client-side routing |
+| `axios` | ^1.14.0 | HTTP client with Bearer auth |
+| `recharts` | ^2.15.4 | Trend graphs (line/bar charts) |
+| `three` | ^0.184.0 | 3D face model visualization |
+| `html2pdf.js` | ^0.10.1 | PDF export |
+| `@tensorflow/tfjs` | ^4.22.0 | Client-side ML runtime |
+| `@vladmandic/face-api` | ^1.7.15 | Face detection (landmarks, bounds) |
+| `@react-oauth/google` | ^0.12.1 | Google OAuth flow |
+| `tailwindcss` | ^4.1.18 | Utility CSS (v4) |
+| `vite` | ^7.2.4 | Dev server and bundler |
+| `typescript` | ~5.9.3 | Type safety (strict mode) |
+
+---
 
 ### Backend (`SkinProgress/`)
 
 **Structure**:
 ```
 SkinProgress/
-├── Controllers/           # API endpoints (AuthController, EvolutionDashboardController, PhotoController, HabitsController)
+├── Controllers/     # AuthController, EvolutionDashboardController, PhotoController, HabitsController, UsersController
 ├── Services/
-│   ├── [Service].cs       # Business logic (EvolutionAnalyticsService, PhotoService, AuthService, EmailService, etc.)
-│   └── Interfaces/        # Service contracts
+│   ├── *.cs         # Business logic implementations
+│   └── Interfaces/  # Service contracts (IXxxService)
 ├── Models/
-│   ├── DTOs/              # Data transfer objects (SkinEvolutionDashboardDto, PeriodComparisonDto, AnalysisResultDto, etc.)
-│   ├── Entities/          # Database entities (User, Photo, AnalysisResult, AuditLog, Badge, HabitDefinition, etc.)
-│   └── [other]            # Constants, enums
-├── Data/                  # DbContext (AppDbContext)
-├── Migrations/            # EF Core migrations for schema versioning
-└── Program.cs             # Dependency injection, middleware setup, JWT config
+│   ├── DTOs/        # API response/request shapes (never expose entities directly)
+│   ├── Entities/    # EF Core entities
+│   └── [other]      # Constants, enums
+├── Data/            # AppDbContext
+├── Migrations/      # EF Core schema migrations
+└── Program.cs       # DI registration, middleware, JWT, CORS
 ```
 
-**Key Technologies**:
-- **.NET 9.0** with async/await patterns
-- **Entity Framework Core 9.0+** for ORM (migrations, LINQ queries, change tracking)
-- **SQL Server** (LocalDB or containerized)
-- **JWT Bearer Authentication** via `IdentityModel.Tokens`
-- **Swagger/OpenAPI** for API documentation (available at `/swagger`)
-- **Qdrant Client** for vector similarity search (habit recommendations, content discovery)
+**NuGet Packages** (from `SkinProgress.csproj`):
 
-**Database Design**:
-- `User` - authentication, profile, preferences
-- `Photo` / `SelfieCapture` - image metadata, capture orientation
-- `AnalysisResult` - AI analysis scores (acne, redness, bags severity 0-10)
-- `HabitDefinition` / `HabitCompletion` / `HabitStreak` - habit tracking
-- `Badge` / `UserBadge` - achievement system
-- `ChatMessage` / `ChatSession` - conversation history
-- `AuditLog` - GDPR compliance logging
-- `PasswordResetToken` / `UserEmailConfirmationToken` - auth token lifecycle
-- Indexed on `(UserId, Timestamp)` for efficient time-range queries
+| Package | Version | Purpose |
+|---|---|---|
+| `Npgsql.EntityFrameworkCore.PostgreSQL` | 9.0.4 | EF Core provider for PostgreSQL |
+| `Microsoft.EntityFrameworkCore.Design/Tools` | 9.0.11 | EF Core CLI tooling |
+| `Microsoft.AspNetCore.Authentication.JwtBearer` | 9.0.11 | JWT middleware |
+| `Microsoft.IdentityModel.JsonWebTokens` | 8.15.0 | JWT token validation |
+| `System.IdentityModel.Tokens.Jwt` | 8.15.0 | JWT token creation |
+| `BCrypt.Net-Next` | 4.0.3 | Password hashing |
+| `Google.Apis.Auth` | 1.68.0 | Google OAuth token validation |
+| `MetadataExtractor` | 2.8.1 | EXIF data extraction from photos |
+| `SixLabors.ImageSharp` | 3.0.0 | Image compression/processing |
+| `Swashbuckle.AspNetCore` | 7.2.0 | Swagger/OpenAPI at `/swagger` |
+| `Microsoft.AspNetCore.OpenApi` | 9.0.11 | OpenAPI support |
 
-**Key Services**:
-- `EvolutionAnalyticsService` - calculates trend percentages, zone averages, period deltas
-- `PhotoService` - image storage, compression, EXIF extraction
-- `AuthService` - JWT generation, password hashing (bcrypt), OAuth token validation
-- `EmailService` - confirmation emails, password reset
-- `JwtTokenService` - token creation/validation with expiry
-- `QdrantService` - vector search for habit/product recommendations
+**Registered Services** (from `Program.cs`):
+
+| Interface | Implementation | Lifetime | Purpose |
+|---|---|---|---|
+| `IEncryptionService` | `EncryptionService` | Singleton | AES-256-GCM field encryption |
+| `IAuthService` | `AuthService` | Scoped | Auth orchestration |
+| `IPasswordHashingService` | `PasswordHashingService` | Scoped | BCrypt hashing |
+| `IJwtTokenService` | `JwtTokenService` | Scoped | JWT creation/validation |
+| `IRateLimitService` | `RateLimitService` | Scoped | In-memory rate limiting |
+| `IEmailService` | `EmailService` | Scoped | SMTP email dispatch |
+| `IEmailConfirmationService` | `EmailConfirmationService` | Scoped | Email confirmation flow |
+| `IPasswordResetService` | `PasswordResetService` | Scoped | Password reset flow |
+| `IRegistrationService` | `RegistrationService` | Scoped | New user registration |
+| `ILoginService` | `LoginService` | Scoped | Login flow |
+| `IFileService` | `FileService` | Scoped | File storage |
+| `IEvolutionAnalyticsService` | `EvolutionAnalyticsService` | Scoped | Trend analytics, period deltas |
+| `IOllamaEmbeddingService` | `OllamaEmbeddingService` | HttpClient | Text → vector embeddings via Ollama |
+| `IQdrantService` | `QdrantService` | HttpClient | Vector search / RAG queries |
+| `ImageCompressionService` | — | Scoped | Image resize/compression |
+| `ExifExtractorService` | — | Scoped | EXIF metadata extraction |
+| `StorageQuotaService` | — | Scoped | Per-user storage quota enforcement |
+| `PhotoService` | — | Scoped | Photo upload orchestration |
+
+**Database Entities** (`Models/Entities/`):
+
+| Entity | Purpose |
+|---|---|
+| `User` | Auth, profile, preferences |
+| `UserPreferences` | User settings |
+| `Photo` / `SelfieCapture` / `PhotoMetadata` | Image storage, capture angle, EXIF |
+| `AnalysisResult` | AI scores: acne/redness/bags (0–10) |
+| `SkinTrend` | Computed trend data |
+| `HabitDefinition` / `HabitCompletion` / `HabitStreak` | Habit tracking |
+| `Badge` / `UserBadge` | Achievement system |
+| `Mission` / `UserMission` | Goal/mission tracking |
+| `ChatMessage` / `ChatSession` | Conversation history |
+| `AuditLog` | GDPR compliance logging |
+| `GdprRequest` | GDPR data requests |
+| `PasswordResetToken` | Password reset lifecycle |
+| `UserEmailConfirmationToken` | Email confirmation lifecycle |
+| `AuthToken` | Auth token storage |
+| `AsyncJob` | Background job tracking |
+| `GeneratedReport` | Exported PDF reports |
+| `Notification` / `NotificationPreferences` | Push/in-app notifications |
+| `Ingredient` / `Product` | Skincare product catalogue |
+
+---
 
 ### AI Service (`ai-service/`)
 
-**Python FastAPI microservice** for analyzing a 3-photo selfie set (front, left, right angles).
+Python FastAPI microservice — run locally via uvicorn (not in docker-compose by default).
 
-**Key Features**:
-- **Face detection** via MediaPipe (landmarks, face bounds expansion)
-- **Condition scoring** (acne, redness, bags) with two backends:
-  - `acne_severity` (default): fine-tuned acne model + CLIP for redness/bags
-  - `clip`: CLIP zero-shot for all conditions
-- **Heatmap generation** (optional, slower) highlighting problem areas using YOLO acne detection or LAB color analysis
-- **Configurable via environment variables** (model backend, heatmap style, detection thresholds)
+**Endpoint**: `POST /analyze-set` — multipart form with files `front`, `left`, `right` (+ optional `user_id`, `date`)
+Returns: JSON with overall scores, per-angle predictions, optional heatmap data URLs.
 
-**Endpoint**:
-- `POST /analyze-set` - accepts multipart form (files: front, left, right; optional: user_id, date)
-- Returns JSON with overall scores, per-angle predictions, heatmap data URLs
+**Python Dependencies** (`requirements.txt`):
 
-**Configurations** in `.env`:
-- `MODEL_BACKEND` - `acne_severity` or `clip`
-- `HEATMAP_ENABLED` - `0` or `1`
-- `HEATMAP_BACKEND` - `uniform_face`, `yolo_acne`, `local_regions`, or `patch`
-- `ACNE_DETECT_CONF` - YOLO confidence threshold (default 0.35)
+| Package | Purpose |
+|---|---|
+| `fastapi` | API framework |
+| `uvicorn[standard]` | ASGI server |
+| `mediapipe` | Face detection and landmarks |
+| `transformers` + `huggingface_hub` | CLIP zero-shot classification |
+| `ultralytics` | YOLO acne detection |
+| `opencv-python` | Image processing |
+| `pillow` | Image I/O |
+| `numpy` | Numerical ops |
+| `python-multipart` | Multipart form parsing |
+
+**Scoring backends** (set via `MODEL_BACKEND` env var):
+- `acne_severity` (default): fine-tuned acne model + CLIP for redness/bags
+- `clip`: CLIP zero-shot for all conditions
+
+**Key env vars** (`.env`):
+- `MODEL_BACKEND` — `acne_severity` or `clip`
+- `HEATMAP_ENABLED` — `0` or `1`
+- `HEATMAP_BACKEND` — `uniform_face`, `yolo_acne`, `local_regions`, or `patch`
+- `ACNE_DETECT_CONF` — YOLO confidence threshold (default 0.35)
+
+---
+
+### n8n / RAG Layer (`n8n/`)
+
+- n8n workflows receive events from the backend (selfie_taken, selfie_analyzed, recommendations_given)
+- Events are embedded via Ollama (`mxbai-embed-large`) and stored in Qdrant
+- Chatbot queries retrieve relevant context from Qdrant (RAG), then generate responses via Ollama
+- Workflow definitions live in `n8n/SkinProgress RAG.json`
+
+---
 
 ## Authentication & Authorization
 
-**JWT-based authentication**:
-- Frontend sends JWT in `Authorization: Bearer {token}` header
-- Backend validates token signature and expiry via `JwtTokenService`
-- Token includes `UserId` claim; extracted in controllers via `User.FindFirst("sub")`
+**JWT-based**:
+- Frontend sends `Authorization: Bearer {token}` on all protected requests
+- Backend validates via `JwtTokenService`; `UserId` extracted via `User.FindFirst("sub")`
+- CORS is wide-open in dev (`AllowAnyOrigin`) — tighten in production
 
-**Supported auth flows**:
-1. **Google OAuth** - frontend exchanges auth code for token via backend, backend validates with Google
-2. **Email/Password** - registration, login, password reset with confirmation emails
-3. **Token Refresh** - tokens expire; frontend handles refresh on 401 responses (mechanism: refresh token rotation or request new token)
+**Supported flows**:
+1. **Google OAuth** — frontend sends auth code; backend validates via `Google.Apis.Auth`
+2. **Email/Password** — registration → email confirmation → login; password reset via token
+3. **Rate limiting** — `RateLimitService` uses `IMemoryCache` to throttle auth endpoints
 
-**Protected Routes**:
-- Evolution dashboard endpoints require JWT bearer token
-- Photo operations require auth
-- Habit and badge endpoints require auth
+**Protected controllers**: `EvolutionDashboardController`, `PhotoController`, `HabitsController`, `UsersController`
+
+---
 
 ## Configuration Files
 
 **Frontend** (`ui/`):
-- `.env` or `.env.local` - `VITE_GOOGLE_CLIENT_ID`, `VITE_API_BASE_URL`
-- `vite.config.ts` - dev server proxy, build output, plugin config
-- `tsconfig.json` - compiler options (target ES2020, strict mode)
-- `eslint.config.js` - linting rules
-- `tailwind.config.ts` - CSS color/spacing customization
-- `postcss.config.cjs` - Tailwind CSS processing
+- `.env.local` — `VITE_GOOGLE_CLIENT_ID`, `VITE_API_BASE_URL`
+- `vite.config.ts` — dev server, build output, plugin config
+- `tsconfig.json` — strict TypeScript, target ES2020
+- `eslint.config.js` — linting rules
 
 **Backend** (`SkinProgress/`):
-- `appsettings.json` - database connection, logging, JWT secret
-- `appsettings.Local.json` (git-ignored) - local overrides (SQL Server connection, AI service URL, email credentials)
-- `appsettings.Development.json` - dev-specific settings
+- `appsettings.json` — defaults (PostgreSQL connection, JWT, Qdrant, Ollama, AI service URL)
+- `appsettings.Local.json` (git-ignored) — local overrides with real secrets
+- `appsettings.Development.json` — dev JWT secret, Mailpit SMTP (port 1025), base URL
+
+**Connection string format** (PostgreSQL, not SQL Server):
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Host=localhost;Port=5432;Database=skinprogressdb;Username=admin;Password=..."
+}
+```
 
 **AI Service** (`ai-service/`):
-- `.env` - model IDs, heatmap settings, detection thresholds
-- `requirements.txt` - Python dependencies
+- `.env` — model backend, heatmap config, detection thresholds
 
 **Project-wide**:
-- `docker-compose.yml` - service definitions (frontend, backend, AI, SQL Server, n8n, Qdrant)
-- `Makefile` - common start commands
-- `DESCRIPTION_LICENSE.md` - feature licensing
+- `docker-compose.yml` — infrastructure services
+- `Makefile` — common start commands
+- `.env` — shared env vars for docker-compose (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DB_PORT, QDRANT_API_KEY)
+
+---
 
 ## Development Workflow
 
@@ -202,67 +298,61 @@ SkinProgress/
 1. **Backend first** (API contract):
    - Add Entity to `Models/Entities/`
    - Create Migration: `dotnet ef migrations add DescriptiveName`
-   - Implement Service in `Services/` with interface in `Services/Interfaces/`
-   - Add Controller endpoint
-   - Add integration tests in `SkinProgress.Tests/`
+   - Implement Service with interface in `Services/Interfaces/`
+   - Register in `Program.cs`
+   - Add Controller endpoint with `[Authorize]`
 
-2. **Frontend** (UI implementation):
-   - Create types in `src/types/` if needed
-   - Create API client in `src/services/` or extend existing
-   - Implement components in `src/components/`
-   - Add page in `src/pages/` or reuse existing
-   - Add ESLint/TypeScript validation pass
+2. **Frontend**:
+   - Add types in `src/types/` if needed
+   - Extend or create API client in `src/services/`
+   - Build components in `src/components/`
+   - Wire up page in `src/pages/` or extend existing
 
-3. **AI Service** (if analyzing photos):
+3. **AI Service** (photo analysis only):
    - Update `app.py` endpoint logic
-   - Test with sample images locally
+   - Test locally with sample images
 
 ### Testing
 
-**Backend**:
-- Unit tests: `SkinProgress.Tests/[Feature]Tests.cs` using MSTest
+**Backend** (MSTest):
+- Test files: `SkinProgress.Tests/[Feature]Tests.cs`
 - Run: `dotnet test` or `dotnet test --filter "ClassName"`
-- Coverage: `dotnet test /p:CollectCoverage=true` (generates `coverage/` report)
-- Current coverage: EvolutionAnalyticsService (11 tests), EvolutionDashboardController (11 integration tests)
+- Active test suites: `EvolutionAnalyticsServiceTests`, `EncryptionServicePropertyTests`, `ActivityEventTests`, `OllamaEmbeddingServiceTests`
 
 **Frontend**:
-- Jest tests framework (not yet fully set up; components exist in codebase)
-- Run: `npm test` (when configured)
-- Snapshot tests for components recommended
+- No test framework configured yet; Jest recommended when added
 
 **Integration**:
-- Start backend on `localhost:5000`, frontend on `localhost:5173`
-- Test with real database (not mocks)
-- E2E tests: `npm run test:e2e` (when available)
+- Backend on `localhost:5000`, frontend on `localhost:5173`
+- Use real PostgreSQL (run `docker compose up -d db` for just the DB)
+
+---
 
 ## Code Style & Conventions
 
 **C# Backend**:
-- Microsoft C# Coding Conventions (PascalCase classes/methods, camelCase parameters)
-- SOLID principles (Dependency Injection via `IServiceCollection`)
-- Async/await for I/O operations
-- Entity Framework LINQ for queries (avoid raw SQL unless necessary)
-- DTOs for API responses (separate from entities to avoid exposure of sensitive fields)
+- PascalCase classes/methods, camelCase parameters (Microsoft conventions)
+- SOLID — all services injected via `IServiceCollection`
+- Async/await for all I/O
+- EF Core LINQ (avoid raw SQL)
+- Always use DTOs in API responses — never expose entities directly
 
 **TypeScript/React Frontend**:
-- ESLint + Prettier for formatting
-- PascalCase component names
-- camelCase for functions/variables
-- Type-safe (strict TypeScript, avoid `any`)
-- Functional components with hooks (React 19)
-- Custom hooks for reusable logic
+- Strict TypeScript (`any` is banned)
+- PascalCase components, camelCase functions/variables
+- Functional components + hooks (React 19)
 
 **Database**:
-- SQL Server conventions (PascalCase table/column names)
-- Migrations for all schema changes (never modify database directly)
+- All schema changes via EF Core migrations — never modify the database directly
+- Indexes on `(UserId, Timestamp)` for range queries
 - Foreign keys for referential integrity
-- Indexes on frequently queried columns (`UserId`, `Timestamp`)
+
+---
 
 ## Common Patterns
 
 ### API Request with Auth
 ```typescript
-// Frontend
 const response = await axios.get('/api/evolution/dashboard', {
   params: { startDate: '2026-03-01', endDate: '2026-04-02' },
   headers: { Authorization: `Bearer ${token}` }
@@ -270,7 +360,6 @@ const response = await axios.get('/api/evolution/dashboard', {
 ```
 
 ```csharp
-// Backend controller
 [HttpGet]
 [Authorize]
 public async Task<ActionResult<SkinEvolutionDashboardDto>> GetDashboard(
@@ -283,33 +372,15 @@ public async Task<ActionResult<SkinEvolutionDashboardDto>> GetDashboard(
 }
 ```
 
-### Entity & Migration
-```csharp
-// Entity
-public class AnalysisResult
-{
-    public int Id { get; set; }
-    public string UserId { get; set; }
-    public DateTime AnalysisDate { get; set; }
-    public decimal AcneSeverity { get; set; }
-    public User User { get; set; } // FK
-}
-
-// Migration
-modelBuilder.Entity<AnalysisResult>()
-    .HasIndex(a => new { a.UserId, a.AnalysisDate })
-    .IsUnique(false);
-```
-
 ### Service Pattern
 ```csharp
-// Interface
+// Interface in Services/Interfaces/
 public interface IEvolutionAnalyticsService
 {
     Task<SkinEvolutionDashboardDto> GetDashboardAsync(string userId, DateTime start, DateTime end);
 }
 
-// Implementation
+// Implementation in Services/
 public class EvolutionAnalyticsService : IEvolutionAnalyticsService
 {
     private readonly AppDbContext _context;
@@ -320,7 +391,6 @@ public class EvolutionAnalyticsService : IEvolutionAnalyticsService
         var results = await _context.AnalysisResults
             .Where(r => r.UserId == userId && r.AnalysisDate >= start && r.AnalysisDate <= end)
             .ToListAsync();
-        // Calculate deltas, trends, etc.
         return new SkinEvolutionDashboardDto { ... };
     }
 }
@@ -329,107 +399,35 @@ public class EvolutionAnalyticsService : IEvolutionAnalyticsService
 builder.Services.AddScoped<IEvolutionAnalyticsService, EvolutionAnalyticsService>();
 ```
 
-### React Component with API Call
-```typescript
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-
-export function EvolutionDashboard() {
-    const [data, setData] = useState<SkinEvolutionDashboardDto | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const response = await axios.get('/api/evolution/dashboard', {
-                params: { startDate: '2026-03-01', endDate: '2026-04-02' },
-                headers: { Authorization: `Bearer ${getToken()}` }
-            });
-            setData(response.data);
-            setLoading(false);
-        };
-        fetchData();
-    }, []);
-
-    if (loading) return <div>Loading...</div>;
-    return <div>{/* Render data */}</div>;
-}
-```
-
-## Database Setup
-
-**SQL Server (Local)**:
-```bash
-# Windows: SQL Server LocalDB (installed with Visual Studio)
-# Or Docker:
-docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourPassword123!" -p 1433:1433 mcr.microsoft.com/mssql/server
-```
-
-**Connection String** (in `appsettings.Local.json`):
-```json
-"ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=SkinProgress;Trusted_Connection=true;"
-}
-```
-
-**Apply Migrations**:
-```bash
-dotnet ef database update
-```
-
-## Deployment Notes
-
-- **Frontend**: Build with `npm run build`, serve `dist/` folder via CDN or static host
-- **Backend**: Publish with `dotnet publish -c Release`, run with `dotnet SkinProgress.dll`
-- **Database**: Migrations auto-applied on startup or via CLI before deployment
-- **Environment Variables**: Use `.env` files locally, CI/CD secrets in production
-- **Docker**: Multi-stage builds for optimized image sizes; use `docker-compose` for orchestration
-
-## Performance Considerations
-
-- **Database**: Indexes on `(UserId, Timestamp)` for efficient range queries; pagination for large result sets
-- **Frontend**: Code splitting via Vite, lazy loading of routes, Recharts chart optimization for large datasets
-- **Images**: EXIF stripping, compression via `ImageCompressionService`; CDN caching recommended
-- **API**: Dashboard load target <2s (4G), date-range interaction <500ms, PDF export <10s
+---
 
 ## Troubleshooting
 
-**Build Issues**:
-- Frontend: Delete `node_modules/` and `package-lock.json`, run `npm install` again
-- Backend: Run `dotnet clean && dotnet restore` if project files changed
-- AI Service: Check Python version (3.8+), reinstall with `pip install --upgrade -r requirements.txt`
+**Database**:
+- Wrong connection: Check `appsettings.Local.json` — must use PostgreSQL format (`Host=...;Port=5432;...`)
+- DB not running: `docker compose up -d db`
+- Migrations pending: `dotnet ef database update`
 
-**Database Issues**:
-- Connection string wrong: Check `appsettings.Local.json` and SQL Server instance running
-- Migrations pending: Run `dotnet ef database update`
-- Foreign key violations: Ensure dependent records exist before insert
+**Backend**:
+- Build fails: `dotnet clean && dotnet restore`
+- 401: Token expired or missing — re-login
+- 404: Route missing from controller or controller not registered
+- CORS: `Program.cs` uses `AllowAll` in dev — if errors appear, verify frontend origin
 
-**API Issues**:
-- 401 Unauthorized: Token expired or missing; refresh JWT via login
-- 404 Not Found: Route not registered in controller or controller not added to middleware
-- CORS errors: Check `Program.cs` CORS policy allows frontend origin
+**Frontend**:
+- Blank page: Check browser console; run `npm run build` to catch TypeScript errors
+- Styles missing: Restart `npm run dev` (Tailwind v4 uses PostCSS watch)
+- Auth loop: Check `authService` token storage and `/login` redirect logic
 
-**Frontend Issues**:
-- Blank page: Check browser console for TypeScript errors; ensure `npm run build` passes
-- API call fails: Verify backend running on correct port, auth token valid
-- Styles missing: Rebuild Tailwind CSS with `npm run dev`
+**AI Service**:
+- Models not loaded: First run downloads from HuggingFace; set `HF_HOME` to a persistent path
+- Slow first response: Model loading is cached after first call; `PRELOAD_MODELS=1` loads on startup
 
-## Project Status
-
-✅ **Current Release**: v1.0-evolution (Phase 5 Complete)
-- Core features implemented (trend graphs, PDF export, period comparison)
-- Backend and frontend fully functional
-- Performance and accessibility targets met
-- Phase 6: Testing expansion and final optimizations
-
-**Next Phase**:
-- Expand Jest test coverage for frontend components
-- Add E2E tests via Playwright or Cypress
-- Performance optimization and mobile testing
-- Final bug fixes and polish
+---
 
 ## References
 
-- [Main README](README.md) - feature overview, setup, API endpoints
-- [Specs Directory](specs/001-evolution-dashboard/) - detailed feature documentation
-- [Performance Report](specs/001-evolution-dashboard/testing/performance-report.md)
-- [Accessibility Audit](specs/001-evolution-dashboard/testing/accessibility-audit.md)
+- [Main README](README.md) — feature overview, setup, API endpoints
+- [Specs Directory](specs/001-evolution-dashboard/) — detailed feature documentation
+- [docker-compose.yml](docker-compose.yml) — authoritative infrastructure definition
+- [Program.cs](SkinProgress/SkinProgress/Program.cs) — authoritative DI and middleware config

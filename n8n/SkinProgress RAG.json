@@ -76,7 +76,7 @@
         },
         "topK": 20,
         "options": {
-          "searchFilterJson": "{\n  \"must\": [\n    {\n      \"key\": \"user_id\",\n      \"match\": {\n        \"value\": \"={{ $('When chat message received').item.json.userId }}\"\n      }\n    }\n  ]\n}"
+          "searchFilterJson": "{\n  \"must\": [\n    {\n      \"key\": \"metadata.user_id\",\n      \"match\": {\n        \"value\": \"={{ $('When chat message received').item.json.sessionId }}\"\n      }\n    }\n  ]\n}"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",

@@ -18,38 +18,92 @@ services:
       timeout: 5s
       retries: 5
 
-  # ai-analyzer:
-  #   build:
-  #     context: ./ai-service
-  #     dockerfile: Dockerfile
-  #   container_name: skinprogress-ai
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   ports:
-  #     - "${AI_SERVICE_PORT}:8001"
-  #   environment:
-  #     - HF_HOME=${HF_HOME}
-  #     - MODEL_BACKEND=${MODEL_BACKEND}
-  #     - HEATMAP_ENABLED=${HEATMAP_ENABLED}
-  #     - HEATMAP_BACKEND=${HEATMAP_BACKEND}
-  #     - ACNE_DETECT_MODEL_REPO=${ACNE_DETECT_MODEL_REPO}
-  #     - ACNE_DETECT_MODEL_FILE=${ACNE_DETECT_MODEL_FILE}
-  #     - PRELOAD_MODELS=${PRELOAD_MODELS}
-  #     - ACNE_DETECT_CONF=${ACNE_DETECT_CONF}
-  #     - ACNE_DETECT_IOU=${ACNE_DETECT_IOU}
-  #     - ACNE_DETECT_MAX_DET=${ACNE_DETECT_MAX_DET}
-  #     - ACNE_HEATMAP_RADIUS_RATIO=${ACNE_HEATMAP_RADIUS_RATIO}
-  #     - UNIFORM_FACE_ALPHA=${UNIFORM_FACE_ALPHA}
-  #     - CLIP_MODEL_ID=${CLIP_MODEL_ID}
-  #     - ACNE_MODEL_ID=${ACNE_MODEL_ID}
-  #   volumes:
-  #     - hf_cache:/tmp/huggingface
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 60s
+  backend:
+    build:
+      context: ./SkinProgress
+      dockerfile: SkinProgress/Dockerfile
+    container_name: skinprogress-backend
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - Jwt__Secret=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+      - Google__ClientId=${GOOGLE_CLIENT_ID}
+      - AiService__BaseUrl=http://ai-analyzer:8001
+      - Qdrant__Host=qdrant
+      - Qdrant__Port=6333
+      - Qdrant__ApiKey=${QDRANT_API_KEY:-}
+      - Ollama__Host=ollama
+      - Ollama__Port=11434
+      - Email__Provider=${EMAIL_PROVIDER:-console}
+      - Email__FromEmail=${EMAIL_FROM_ADDRESS}
+      - Email__FromName=${EMAIL_FROM_NAME}
+      - Email__Smtp__Host=mailpit
+      - Email__Smtp__Port=1025
+      - App__BaseUrl=${APP_BASE_URL:-http://localhost:3000}
+    volumes:
+      - ./SkinProgress/SkinProgress/wwwroot:/app/wwwroot
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+        - VITE_N8N_WEBHOOK_URL=${VITE_N8N_WEBHOOK_URL:-}
+    container_name: skinprogress-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  ai-analyzer:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: skinprogress-ai
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${AI_SERVICE_PORT}:8001"
+    environment:
+      - HF_HOME=${HF_HOME}
+      - MODEL_BACKEND=${MODEL_BACKEND}
+      - HEATMAP_ENABLED=${HEATMAP_ENABLED}
+      - HEATMAP_BACKEND=${HEATMAP_BACKEND}
+      - ACNE_DETECT_MODEL_REPO=${ACNE_DETECT_MODEL_REPO}
+      - ACNE_DETECT_MODEL_FILE=${ACNE_DETECT_MODEL_FILE}
+      - PRELOAD_MODELS=${PRELOAD_MODELS}
+      - ACNE_DETECT_CONF=${ACNE_DETECT_CONF}
+      - ACNE_DETECT_IOU=${ACNE_DETECT_IOU}
+      - ACNE_DETECT_MAX_DET=${ACNE_DETECT_MAX_DET}
+      - ACNE_HEATMAP_RADIUS_RATIO=${ACNE_HEATMAP_RADIUS_RATIO}
+      - UNIFORM_FACE_ALPHA=${UNIFORM_FACE_ALPHA}
+      - CLIP_MODEL_ID=${CLIP_MODEL_ID}
+      - ACNE_MODEL_ID=${ACNE_MODEL_ID}
+    volumes:
+      - hf_cache:/tmp/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
@@ -140,7 +194,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
