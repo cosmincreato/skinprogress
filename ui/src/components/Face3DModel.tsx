@@ -31,7 +31,6 @@ function gauss2d(
 }
 
 // Gaussian visibility weight — how well a given face angle "sees" this normX position
-// @ts-ignore — used in Task 3 vertex loop rewrite
 function angleWeight(normX: number, center: number, sigma: number): number {
   const d = (normX - center) / sigma;
   return Math.exp(-0.5 * d * d);
@@ -277,9 +276,6 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
     const eyeLeft  = Math.min(1, leftScores.under_eye_bags  ?? eyeScore);
     const eyeRight = Math.min(1, rightScores.under_eye_bags ?? eyeScore);
 
-    // TODO: removed in Task 3 when vertex loop is rewritten
-    const redNose = redFront;
-
     // Base skin tone from selfie sample, or warm neutral fallback
     const region = regionRef.current;
     const baseSkinR = region ? region.skinR / 255 : 0.72;
@@ -342,40 +338,54 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
             // Soft front-facing gate: full weight at fnz≥0.3, zero at fnz≤-0.1
             const faceW = Math.max(0, Math.min(1, (fnz + 0.1) / 0.4));
 
-            // --- Detection-driven blobs (when front photo detections are available) ---
-            let blendWeight = 0;
-
-            const blobs = blobsRef.current;
-            if (blobs.length > 0) {
-              // Detection-driven: actual positions from photo, severity = intensity
-              for (const blob of blobs) {
-                const w = gauss2d(normX, normY, blob.normX, blob.normY, blob.sigmaX, blob.sigmaY)
-                  * blob.severity;
-                if (w > blendWeight) blendWeight = w;
-              }
-            } else {
-              // Fallback: fixed anatomical zones, per-angle score = intensity (not size)
-              // This makes asymmetry visible: low score → dim, high score → bright
-              blendWeight = Math.min(1, Math.max(
-                gauss2d(normX, normY, -0.28, 0.53, 0.12, 0.10) * acneLeft,
-                gauss2d(normX, normY,  0.28, 0.53, 0.12, 0.10) * acneRight,
-                gauss2d(normX, normY,  0.00, 0.60, 0.10, 0.10) * redNose,
-                gauss2d(normX, normY, -0.26, 0.55, 0.16, 0.12) * redLeft,
-                gauss2d(normX, normY,  0.26, 0.55, 0.16, 0.12) * redRight,
-                gauss2d(normX, normY, -0.16, 0.70, 0.08, 0.04) * eyeLeft,
-                gauss2d(normX, normY,  0.16, 0.70, 0.08, 0.04) * eyeRight,
-              ));
+            // --- Acne weight ---
+            // Front-photo detection blobs + per-angle cheek anatomical blobs (additive)
+            let acneW = 0;
+            for (const blob of blobsRef.current) {
+              const w = gauss2d(normX, normY, blob.normX, blob.normY, blob.sigmaX, blob.sigmaY)
+                * blob.severity;
+              if (w > acneW) acneW = w;
             }
+            // Per-angle cheek blobs always contribute alongside front detections
+            acneW = Math.min(1, Math.max(
+              acneW,
+              gauss2d(normX, normY, +0.30, 0.53, 0.13, 0.11) * acneLeft,
+              gauss2d(normX, normY, -0.30, 0.53, 0.13, 0.11) * acneRight,
+            ));
 
-            // Gamma: pushes mid-weights down, keeps high-severity spots vivid
-            const blend = Math.pow(Math.min(1, blendWeight), 0.7) * faceW;
+            // --- Redness weight — weighted composite across all 3 angles ---
+            const wFront = angleWeight(normX,  0.00, 0.50);
+            const wLeft  = angleWeight(normX, +0.55, 0.35);
+            const wRight = angleWeight(normX, -0.55, 0.35);
+            const wSum   = wFront + wLeft + wRight || 1;
+            const rednessW = Math.min(1,
+              (wFront * redFront + wLeft * redLeft + wRight * redRight) / wSum
+            );
 
-            // Start from base skin tone, blend into red
-            let r = baseSkinR, g = baseSkinG, b = baseSkinB;
+            // --- Under-eye weight ---
+            const eyeW = Math.min(1, Math.max(
+              gauss2d(normX, normY, +0.16, 0.70, 0.08, 0.04) * eyeLeft,
+              gauss2d(normX, normY, -0.16, 0.70, 0.08, 0.04) * eyeRight,
+            ));
 
-            r += blend * (ACNE_COLOR[0] - r);
-            g += blend * (ACNE_COLOR[1] - g);
-            b += blend * (ACNE_COLOR[2] - b);
+            // Gamma: pushes mid-weights down, keeps high-severity vivid
+            const acneBlend    = Math.pow(acneW,    0.7) * faceW;
+            const rednessBlend = Math.pow(rednessW, 0.7) * faceW;
+            const eyeBlend     = Math.pow(eyeW,     0.7) * faceW;
+
+            // Additive multi-condition blend over base skin tone
+            let r = baseSkinR + acneBlend * (ACNE_COLOR[0] - baseSkinR)
+                               + rednessBlend * (REDNESS_COLOR[0] - baseSkinR)
+                               + eyeBlend * (EYE_COLOR[0] - baseSkinR);
+            let g = baseSkinG + acneBlend * (ACNE_COLOR[1] - baseSkinG)
+                               + rednessBlend * (REDNESS_COLOR[1] - baseSkinG)
+                               + eyeBlend * (EYE_COLOR[1] - baseSkinG);
+            let b = baseSkinB + acneBlend * (ACNE_COLOR[2] - baseSkinB)
+                               + rednessBlend * (REDNESS_COLOR[2] - baseSkinB)
+                               + eyeBlend * (EYE_COLOR[2] - baseSkinB);
+            r = Math.min(1, Math.max(0, r));
+            g = Math.min(1, Math.max(0, g));
+            b = Math.min(1, Math.max(0, b));
 
             colorBuf[i * 3]     = r;
             colorBuf[i * 3 + 1] = g;
