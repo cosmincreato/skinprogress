@@ -30,11 +30,6 @@ function gauss2d(
   return Math.exp(-0.5 * (dx * dx + dy * dy));
 }
 
-// Gaussian visibility weight — how well a given face angle "sees" this normX position
-function angleWeight(normX: number, center: number, sigma: number): number {
-  const d = (normX - center) / sigma;
-  return Math.exp(-0.5 * d * d);
-}
 
 interface FaceRegion {
   skinR: number;
@@ -354,14 +349,12 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
               gauss2d(normX, normY, -0.30, 0.53, 0.13, 0.11) * acneRight,
             ));
 
-            // --- Redness weight — weighted composite across all 3 angles ---
-            const wFront = angleWeight(normX,  0.00, 0.50);
-            const wLeft  = angleWeight(normX, +0.55, 0.35);
-            const wRight = angleWeight(normX, -0.55, 0.35);
-            const wSum   = wFront + wLeft + wRight || 1;
-            const rednessW = Math.min(1,
-              (wFront * redFront + wLeft * redLeft + wRight * redRight) / wSum
-            );
+            // --- Redness weight — spatially localized per-angle zones, wider sigma than acne ---
+            const rednessW = Math.min(1, Math.max(
+              gauss2d(normX, normY,  0.00, 0.58, 0.22, 0.18) * redFront,  // nose / center
+              gauss2d(normX, normY, +0.32, 0.53, 0.22, 0.18) * redLeft,   // left cheek
+              gauss2d(normX, normY, -0.32, 0.53, 0.22, 0.18) * redRight,  // right cheek
+            ));
 
             // --- Under-eye weight ---
             const eyeW = Math.min(1, Math.max(
