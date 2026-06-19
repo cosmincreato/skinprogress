@@ -30,6 +30,12 @@ function gauss2d(
   return Math.exp(-0.5 * (dx * dx + dy * dy));
 }
 
+// Gaussian visibility weight — how well a given face angle "sees" this normX position
+function angleWeight(normX: number, center: number, sigma: number): number {
+  const d = (normX - center) / sigma;
+  return Math.exp(-0.5 * d * d);
+}
+
 interface FaceRegion {
   skinR: number;
   skinG: number;
@@ -247,23 +253,31 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
     }
     const roughTex = new THREE.CanvasTexture(roughCanvas);
 
-    // Overall scores (fallback for zones without an angle-specific reading)
+    // Overall scores (fallback when per-angle data is absent)
     const acneScore    = Math.min(1, scores.acne           ?? 0);
     const rednessScore = Math.min(1, scores.redness        ?? 0);
     const eyeScore     = Math.min(1, scores.under_eye_bags ?? 0);
 
-    // Per-angle scores — drive left/right cheek zones independently
+    // Per-angle score objects
     const frontScores = perAngle?.front?.scores ?? scores;
     const leftScores  = perAngle?.left?.scores  ?? scores;
     const rightScores = perAngle?.right?.scores ?? scores;
 
-    const acneLeft      = Math.min(1, leftScores.acne           ?? acneScore);
-    const acneRight     = Math.min(1, rightScores.acne          ?? acneScore);
-    const redLeft       = Math.min(1, leftScores.redness        ?? rednessScore);
-    const redRight      = Math.min(1, rightScores.redness       ?? rednessScore);
-    const redNose       = Math.min(1, frontScores.redness       ?? rednessScore);
-    const eyeLeft       = Math.min(1, leftScores.under_eye_bags  ?? eyeScore);
-    const eyeRight      = Math.min(1, rightScores.under_eye_bags ?? eyeScore);
+    // Acne — per-angle cheek severity (front blobs handled separately via detections)
+    const acneLeft  = Math.min(1, leftScores.acne  ?? acneScore);
+    const acneRight = Math.min(1, rightScores.acne ?? acneScore);
+
+    // Redness — weighted composite inputs
+    const redFront = Math.min(1, frontScores.redness ?? rednessScore);
+    const redLeft  = Math.min(1, leftScores.redness  ?? rednessScore);
+    const redRight = Math.min(1, rightScores.redness ?? rednessScore);
+
+    // Under-eye — per-angle (left angle sees person's left eye, right angle sees person's right)
+    const eyeLeft  = Math.min(1, leftScores.under_eye_bags  ?? eyeScore);
+    const eyeRight = Math.min(1, rightScores.under_eye_bags ?? eyeScore);
+
+    // TODO: removed in Task 3 when vertex loop is rewritten
+    const redNose = redFront;
 
     // Base skin tone from selfie sample, or warm neutral fallback
     const region = regionRef.current;
