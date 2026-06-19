@@ -253,6 +253,7 @@ const GalleryPage = () => {
   >({});
   const [compareMode, setCompareMode] = useState(false);
   const [compareDate, setCompareDate] = useState<string>("");
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [activeTrendMetrics, setActiveTrendMetrics] = useState<string[]>([
     "acne",
     "redness",
@@ -504,10 +505,7 @@ const GalleryPage = () => {
       .filter((date) => visibleMonthSet.has(date.slice(0, 7)))
       .map((date) => {
         const a = analysisByDate[date];
-        const point: Record<string, number | string> = {
-          date,
-          shortDate: date.slice(5),
-        };
+        const point: Record<string, number | string> = { date };
         Object.entries(a.overall_scores).forEach(([key, val]) => {
           point[key] = +(val * 10).toFixed(1);
         });
@@ -850,56 +848,64 @@ const GalleryPage = () => {
     inflammation: "Inflammation",
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <header className="bg-surface/50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-blue-300 leading-relaxed">
-            Your Daily Pic Sets
-          </h1>
-          <button
-            onClick={() => navigate(`/users/${userId}`)}
-            className="w-fit py-2 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 bg-slate-600 hover:bg-slate-500 border border-slate-400 text-on-surface text-sm sm:text-base"
-          >
-            ← Back
-          </button>
-        </div>
-      </header>
+  const MONTH_COLORS: Record<number, { bg: string; text: string; border: string }> = {
+    1: { bg: "#7B8B9C", text: "white", border: "#5B6B7C" }, // January - soft steel blue
+    2: { bg: "#D4607A", text: "white", border: "#B84060" }, // February - bloom light
+    3: { bg: "#8B9E88", text: "white", border: "#6B7E68" }, // March - sage
+    4: { bg: "#C5A892", text: "white", border: "#A58872" }, // April - soft taupe
+    5: { bg: "#B8A89C", text: "white", border: "#988C7C" }, // May - warm gray
+    6: { bg: "#D4A574", text: "white", border: "#B48554" }, // June - warm gold
+    7: { bg: "#C17F60", text: "white", border: "#A15F40" }, // July - terracotta
+    8: { bg: "#E87894", text: "white", border: "#C85874" }, // August - bloom dark
+    9: { bg: "#A88070", text: "white", border: "#886050" }, // September - rust
+    10: { bg: "#C87555", text: "white", border: "#A85535" }, // October - burnt sienna
+    11: { bg: "#6B8070", text: "white", border: "#4B6050" }, // November - deep sage
+    12: { bg: "#5B7B9C", text: "white", border: "#3B5B7C" }, // December - deep blue
+  };
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-6">
-        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-xl w-fit border border-slate-700">
+  return (
+    <div className="bg-background min-h-screen">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
+
+        {/* Page header */}
+        <div>
+          <h2 className="font-display text-4xl sm:text-5xl text-on-surface">Gallery</h2>
+          <p className="text-on-surface-variant text-sm mt-1">Your daily photo sets</p>
+        </div>
+
+        <div className="flex gap-0.5 p-1 bg-surface-warm rounded-xl border border-skin-border w-fit">
           {(["gallery", "care"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab
-                  ? "bg-slate-700 text-on-surface shadow-sm"
+                  ? "bg-surface text-on-surface shadow-sm border border-skin-border"
                   : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              {tab === "gallery" ? "Gallery" : "Recommended Care"}
+              {tab === "gallery" ? "Gallery" : "Recommended care"}
             </button>
           ))}
         </div>
 
         {activeTab === "gallery" &&
           (loading ? (
-            <div className="text-center py-12">
-              <p className="text-on-surface-variant">Loading gallery...</p>
+            <div className="flex items-center justify-center py-16">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <p className="text-sm text-on-surface-variant">Loading gallery…</p>
+              </div>
             </div>
           ) : selfieDays.length === 0 ? (
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-12 text-center">
-              <p className="text-on-surface-variant text-lg">
-                No daily sets yet
-              </p>
-              <p className="text-on-surface-variant text-sm mt-2">
-                Start by taking your first 3-photo set.
+            <div className="bg-surface border border-dashed border-skin-border rounded-2xl p-12 text-center">
+              <p className="text-on-surface-variant text-sm">
+                No daily sets yet — start by taking your first 3-photo set.
               </p>
             </div>
           ) : (
             <>
-              <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6">
+              <div className="bg-surface border border-skin-border rounded-2xl p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
                     <p className="text-on-surface font-semibold">
@@ -912,8 +918,8 @@ const GalleryPage = () => {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                     <span>Less</span>
-                    <span className="w-3 h-3 rounded-[3px] border border-slate-600 bg-transparent" />
-                    <span className="w-3 h-3 rounded-[3px] border border-purple-300/40 bg-purple-500/80" />
+                    <span className="w-3 h-3 rounded-[3px] border border-skin-border bg-surface-warm" />
+                    <span className="w-3 h-3 rounded-[3px] border border-bloom bg-bloom" />
                     <span>More</span>
                   </div>
                 </div>
@@ -921,19 +927,19 @@ const GalleryPage = () => {
                 <div className="flex items-center justify-between mb-4">
                   <button
                     onClick={() => goToMonth(-1)}
-                    className="py-1.5 px-3 rounded-lg border border-slate-600 text-sm text-on-surface-variant hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="py-1.5 px-3 rounded-lg border-2 border-skin-border bg-surface-warm text-sm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     ← Previous
                   </button>
-                  <p className="text-on-surface text-sm sm:text-base font-semibold">
-                    {formatMonthLabel(visibleMonthKeys[0])} -{" "}
+                  <p className="text-on-surface text-sm sm:text-base font-medium">
+                    {formatMonthLabel(visibleMonthKeys[0])} —{" "}
                     {formatMonthLabel(
                       visibleMonthKeys[visibleMonthKeys.length - 1],
                     )}
                   </p>
                   <button
                     onClick={() => goToMonth(1)}
-                    className="py-1.5 px-3 rounded-lg border border-slate-600 text-sm text-on-surface-variant hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="py-1.5 px-3 rounded-lg border-2 border-skin-border bg-surface-warm text-sm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Next →
                   </button>
@@ -941,14 +947,36 @@ const GalleryPage = () => {
 
                 <div className="overflow-x-auto pb-1">
                   <div className="inline-grid w-fit grid-flow-col auto-cols-max gap-[1px] mb-1">
-                    {monthTickLabels.map((label, index) => (
-                      <p
-                        key={`month-tick-${index}`}
-                        className="w-6 h-4 text-[10px] leading-none text-on-surface-variant"
-                      >
-                        {label}
-                      </p>
-                    ))}
+                    {monthTickLabels.map((label, columnIndex) => {
+                      let monthNum = 1;
+                      if (label) {
+                        const columnStart = columnIndex * 5;
+                        const columnCells = contributionCells.slice(columnStart, columnStart + 5);
+                        const firstOfMonthCell = columnCells.find(
+                          (dateKey) => !!dateKey && dateKey.endsWith("-01"),
+                        );
+                        if (firstOfMonthCell) {
+                          monthNum = parseInt(firstOfMonthCell.split("-")[1], 10);
+                        }
+                      }
+                      const monthColor = MONTH_COLORS[monthNum];
+                      return label ? (
+                        <div
+                          key={`month-tick-${columnIndex}`}
+                          className="w-6 h-5 text-[9px] font-semibold leading-none flex items-center justify-center rounded px-0.5 border"
+                          style={{
+                            backgroundColor: monthColor.bg,
+                            color: monthColor.text,
+                            borderColor: monthColor.border,
+                          }}
+                          title={label}
+                        >
+                          {label}
+                        </div>
+                      ) : (
+                        <div key={`month-tick-${columnIndex}`} className="w-6 h-5" />
+                      );
+                    })}
                   </div>
 
                   <div className="inline-grid w-fit grid-flow-col grid-rows-5 auto-cols-max gap-[1px]">
@@ -962,21 +990,38 @@ const GalleryPage = () => {
                       const day = selfieDayByDate.get(dateKey);
                       const isComplete = day?.isComplete ?? false;
                       const isSelected = dateKey === selectedDate;
+                      const monthNum = parseInt(dateKey.split("-")[1], 10);
+                      const monthColor = MONTH_COLORS[monthNum];
+                      const isHovered = hoveredDate === dateKey;
 
                       return (
-                        <button
-                          key={dateKey}
-                          onClick={() => setSelectedDate(dateKey)}
-                          title={`${formatUtcDateLabel(dateKey)}${isComplete ? " • Complete" : " • No complete set"}`}
-                          className={`w-6 h-6 rounded-[3px] border transition-all text-[10px] leading-none inline-flex items-center justify-center ${
-                            isComplete
-                              ? "bg-purple-500/80 hover:bg-purple-400 border-purple-300/40 text-white"
-                              : "bg-transparent hover:bg-slate-700/60 border-slate-600 text-on-surface-variant"
-                          } ${isSelected ? "ring-2 ring-blue-300/80" : ""}`}
-                          aria-label={`Open ${formatUtcDateLabel(dateKey)}`}
-                        >
-                          {dateKey.slice(8, 10).replace(/^0/, "")}
-                        </button>
+                        <div key={dateKey} className="relative w-6 h-6">
+                          {isHovered && (
+                            <div
+                              className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 text-on-surface text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-skin-border shadow-md whitespace-nowrap pointer-events-none z-50"
+                              style={{ backgroundColor: "rgb(var(--color-surface))" }}
+                            >
+                              {formatUtcDateLabel(dateKey)}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setSelectedDate(dateKey)}
+                            onMouseEnter={() => setHoveredDate(dateKey)}
+                            onMouseLeave={() => setHoveredDate(null)}
+                            className={`w-6 h-6 rounded-[3px] border transition-all text-[10px] leading-none inline-flex items-center justify-center hover:scale-110 hover:shadow-md ${
+                              isComplete
+                                ? "bg-bloom hover:bg-bloom-hover text-white"
+                                : "bg-surface-warm hover:bg-surface text-on-surface-variant"
+                            } ${isSelected ? "ring-2 ring-primary/60" : ""}`}
+                            style={{
+                              borderColor: monthColor.border,
+                              borderWidth: "1px",
+                            }}
+                            aria-label={`Open ${formatUtcDateLabel(dateKey)}`}
+                          >
+                            {dateKey.slice(8, 10).replace(/^0/, "")}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -984,7 +1029,7 @@ const GalleryPage = () => {
               </div>
 
               {trendData.length >= 2 && (
-                <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6">
+                <div className="bg-surface border border-skin-border rounded-2xl p-4 sm:p-6">
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div>
                       <p className="text-on-surface font-semibold">Trends</p>
@@ -1015,10 +1060,10 @@ const GalleryPage = () => {
                                   : "transparent",
                                 borderColor: active
                                   ? METRIC_COLORS[metric]
-                                  : "#475569",
+                                  : "#E8DDD4",
                                 color: active
                                   ? METRIC_COLORS[metric]
-                                  : "#94a3b8",
+                                  : "#8C7B6E",
                               }}
                             >
                               {METRIC_LABEL[metric] ?? formatLabel(metric)}
@@ -1032,36 +1077,34 @@ const GalleryPage = () => {
                       data={trendData}
                       margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD4" />
                       <XAxis
-                        dataKey="shortDate"
-                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: "#8C7B6E" }}
                         tickLine={false}
                         axisLine={false}
+                        tickFormatter={(value: string) => value.slice(5)}
                       />
                       <YAxis
                         domain={[0, 10]}
-                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        tick={{ fontSize: 10, fill: "#8C7B6E" }}
                         tickLine={false}
                         axisLine={false}
                       />
                       <Tooltip
                         contentStyle={{
-                          background: "#0f172a",
-                          border: "1px solid #334155",
+                          background: "#FFFFFF",
+                          border: "1px solid #E8DDD4",
                           borderRadius: 8,
                           fontSize: 12,
                         }}
-                        labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
+                        labelStyle={{ color: "#3D2B20", marginBottom: 4 }}
                         formatter={(value: number, name: string) => [
                           `${value}/10`,
                           METRIC_LABEL[name] ?? formatLabel(name),
                         ]}
-                        labelFormatter={(label) =>
-                          formatUtcDateLabel(`2000-${label}`).replace(
-                            "2000, ",
-                            "",
-                          )
+                        labelFormatter={(label: string) =>
+                          formatUtcDateLabel(label)
                         }
                       />
                       {activeTrendMetrics.map((metric) => (
@@ -1085,7 +1128,7 @@ const GalleryPage = () => {
                 </div>
               )}
 
-              <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6 space-y-4">
+              <div className="bg-surface border border-skin-border rounded-2xl p-4 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-on-surface font-semibold">
@@ -1115,8 +1158,8 @@ const GalleryPage = () => {
                   <span
                     className={`text-xs px-2 py-1 rounded-full border ${
                       selectedDay?.isComplete
-                        ? "bg-purple-500/10 border-purple-500/30 text-purple-300"
-                        : "bg-slate-700/40 border-slate-600 text-on-surface-variant"
+                        ? "bg-bloom/10 border-bloom/30 text-bloom"
+                        : "bg-surface-warm border-skin-border text-on-surface-variant"
                     }`}
                   >
                     {selectedDay?.isComplete
@@ -1133,7 +1176,7 @@ const GalleryPage = () => {
                     <select
                       value={compareDate}
                       onChange={(e) => setCompareDate(e.target.value)}
-                      className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-sm text-on-surface focus:outline-none"
+                      className="appearance-none bg-surface-warm border border-skin-border rounded-lg px-2 py-1 text-sm text-on-surface focus:outline-none cursor-pointer"
                     >
                       <option value="">Select a date…</option>
                       {analyzedDates
@@ -1158,21 +1201,21 @@ const GalleryPage = () => {
                         return photo ? (
                           <div
                             key={`${selectedDay.date}-${angle}`}
-                            className="rounded-xl overflow-hidden border border-slate-700"
+                            className="relative rounded-xl overflow-hidden border border-skin-border"
                           >
                             <img
                               src={photo.url}
                               alt={`${formatAngleLabel(angle)} selfie`}
                               className="w-full aspect-[4/3] object-cover"
                             />
-                            <p className="text-center text-xs py-2 text-on-surface-variant bg-slate-900/60">
+                            <p className="absolute bottom-0 inset-x-0 text-center text-xs py-1.5 text-white bg-black/30">
                               {formatAngleLabel(angle)}
                             </p>
                           </div>
                         ) : (
                           <div
                             key={`${selectedDay.date}-${angle}`}
-                            className="rounded-xl border border-dashed border-slate-600 aspect-[4/3] flex items-center justify-center text-on-surface-variant text-xs"
+                            className="rounded-xl border border-dashed border-skin-border aspect-[4/3] flex items-center justify-center text-on-surface-variant text-xs bg-surface-warm"
                           >
                             {formatAngleLabel(angle)} missing
                           </div>
@@ -1184,7 +1227,7 @@ const GalleryPage = () => {
                       <button
                         onClick={() => handleAnalyzeSet(selectedDay)}
                         disabled={analysisLoadingByDate[selectedDay.date]}
-                        className="w-fit py-2 px-4 rounded-lg font-semibold transition-all duration-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-fit py-2 px-4 rounded-lg font-semibold bg-bloom hover:bg-bloom-hover text-white text-sm shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {analysisLoadingByDate[selectedDay.date]
                           ? "Analyzing..."
@@ -1198,7 +1241,7 @@ const GalleryPage = () => {
                       )}
 
                       {analysisByDate[selectedDay.date] && (
-                        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/40 p-4 space-y-4">
+                        <div className="rounded-2xl border border-skin-border bg-surface-warm p-4 space-y-4">
                           {analysisByDate[selectedDay.date].summary !==
                             "Analysis from database" && (
                             <p className="text-on-surface-variant text-sm leading-relaxed">
@@ -1217,7 +1260,7 @@ const GalleryPage = () => {
                               return (
                                 <div
                                   key={`${selectedDay.date}-score-${key}`}
-                                  className="rounded-xl bg-slate-800/60 p-3 space-y-2"
+                                  className="rounded-xl bg-surface border border-skin-border p-3 space-y-2"
                                   style={{ borderLeft: `3px solid ${color}` }}
                                 >
                                   <div className="flex items-center gap-1.5">
@@ -1238,7 +1281,7 @@ const GalleryPage = () => {
                                       /10
                                     </span>
                                   </p>
-                                  <div className="h-1.5 rounded-full bg-slate-700/80 overflow-hidden">
+                                  <div className="h-1.5 rounded-full bg-skin-border overflow-hidden">
                                     <div
                                       className="h-full rounded-full"
                                       style={{
@@ -1290,7 +1333,7 @@ const GalleryPage = () => {
                                   ) : (
                                     <div
                                       key={`${selectedDay.date}-heatmap-${angle}`}
-                                      className="rounded-xl border border-dashed border-slate-700 aspect-[4/3] flex items-center justify-center text-[11px] text-on-surface-variant"
+                                      className="rounded-xl border border-dashed border-skin-border aspect-[4/3] flex items-center justify-center text-[11px] text-on-surface-variant bg-surface-warm"
                                     >
                                       {formatAngleLabel(angle)} unavailable
                                     </div>
@@ -1336,7 +1379,7 @@ const GalleryPage = () => {
                               return (
                                 <div
                                   key={key}
-                                  className="bg-slate-800/60 rounded-lg p-3 space-y-1"
+                                  className="bg-surface border border-skin-border rounded-lg p-3 space-y-1"
                                 >
                                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">
                                     {METRIC_LABEL[key] ?? formatLabel(key)}
@@ -1367,7 +1410,7 @@ const GalleryPage = () => {
                                       {improved ? " ↓" : worsened ? " ↑" : ""}
                                     </p>
                                     <div className="text-center">
-                                      <p className="text-[10px] text-purple-300">
+                                      <p className="text-[10px] text-bloom">
                                         {formatUtcDateLabel(compareDate).slice(
                                           0,
                                           6,
@@ -1409,7 +1452,7 @@ const GalleryPage = () => {
                                       {formatAngleLabel(angle)}
                                     </p>
                                     <div className="grid grid-cols-2 gap-2">
-                                      <div className="rounded-xl overflow-hidden border border-blue-500/30">
+                                      <div className="relative rounded-xl overflow-hidden border border-primary/30">
                                         {urlA ? (
                                           <>
                                             <img
@@ -1417,17 +1460,17 @@ const GalleryPage = () => {
                                               alt={`${formatAngleLabel(angle)} ${heatmapA ? "heatmap" : "selfie"}`}
                                               className="w-full aspect-[4/3] object-cover"
                                             />
-                                            <p className="text-center text-[10px] py-1 text-blue-300 bg-slate-900/60">
+                                            <p className="absolute bottom-0 inset-x-0 text-center text-[10px] py-1 text-white bg-black/30">
                                               {formatUtcDateLabel(selectedDay.date)}
                                             </p>
                                           </>
                                         ) : (
-                                          <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-slate-600 rounded-xl">
+                                          <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-skin-border rounded-xl bg-surface-warm">
                                             No photo
                                           </div>
                                         )}
                                       </div>
-                                      <div className="rounded-xl overflow-hidden border border-purple-500/30">
+                                      <div className="relative rounded-xl overflow-hidden border border-bloom/30">
                                         {urlB ? (
                                           <>
                                             <img
@@ -1435,12 +1478,12 @@ const GalleryPage = () => {
                                               alt={`${formatAngleLabel(angle)} ${heatmapB ? "heatmap" : "selfie"}`}
                                               className="w-full aspect-[4/3] object-cover"
                                             />
-                                            <p className="text-center text-[10px] py-1 text-purple-300 bg-slate-900/60">
+                                            <p className="absolute bottom-0 inset-x-0 text-center text-[10px] py-1 text-white bg-black/30">
                                               {formatUtcDateLabel(compareDate)}
                                             </p>
                                           </>
                                         ) : (
-                                          <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-slate-600 rounded-xl">
+                                          <div className="aspect-[4/3] flex items-center justify-center text-[10px] text-on-surface-variant border border-dashed border-skin-border rounded-xl bg-surface-warm">
                                             No photo
                                           </div>
                                         )}
@@ -1464,7 +1507,7 @@ const GalleryPage = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-slate-600 p-6 text-sm text-on-surface-variant">
+                  <div className="rounded-xl border border-dashed border-skin-border p-6 text-sm text-on-surface-variant bg-surface-warm">
                     No selfie set for this day.
                   </div>
                 )}
@@ -1474,7 +1517,7 @@ const GalleryPage = () => {
 
         {activeTab === "care" && (
           <div className="space-y-6">
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6">
+            <div className="bg-surface border border-skin-border rounded-2xl p-4 sm:p-6">
               <p className="text-on-surface font-semibold mb-1">
                 Your Skin Summary
               </p>
@@ -1494,7 +1537,7 @@ const GalleryPage = () => {
                   ).map(([key, val]) => (
                     <div
                       key={key}
-                      className="flex items-center gap-1.5 bg-slate-800/60 rounded-full px-3 py-1"
+                      className="flex items-center gap-1.5 bg-surface-warm border border-skin-border rounded-full px-3 py-1"
                     >
                       <span
                         className="w-2 h-2 rounded-full flex-shrink-0"
@@ -1515,7 +1558,7 @@ const GalleryPage = () => {
             </div>
 
             {recommendations.length === 0 ? (
-              <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-8 text-center">
+              <div className="bg-surface border border-skin-border rounded-2xl p-8 text-center">
                 <p className="text-on-surface-variant text-sm">
                   Analyze at least one day to get personalized recommendations.
                 </p>
@@ -1538,18 +1581,18 @@ const GalleryPage = () => {
                       {group.map((rec) => {
                         const cardStyle = {
                           urgent: {
-                            border: "border-red-500/30",
-                            bg: "bg-red-500/5",
-                            color: "#f87171",
+                            border: "border-bloom/30",
+                            bg: "bg-bloom/5",
+                            color: "#D4607A",
                           },
                           recommended: {
-                            border: "border-indigo-500/30",
-                            bg: "bg-indigo-500/5",
-                            color: "#818cf8",
+                            border: "border-secondary/30",
+                            bg: "bg-secondary/5",
+                            color: "#8B9E88",
                           },
                           optional: {
-                            border: "border-slate-600",
-                            bg: "bg-slate-700/20",
+                            border: "border-skin-border",
+                            bg: "bg-surface-warm",
                             color: "#64748b",
                           },
                         }[rec.priority];

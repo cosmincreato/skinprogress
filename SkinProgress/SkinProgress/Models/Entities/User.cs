@@ -53,6 +53,12 @@ public class User
     [MaxLength(50)]
     public string SkinType { get; set; } = "Not Set";
 
+    [MaxLength(100)]
+    public string? FirstName { get; set; }
+
+    [MaxLength(100)]
+    public string? LastName { get; set; }
+
     [MaxLength(255)]
     public string ProfilePictureUrl { get; set; } = "/uploads/default.png";
 

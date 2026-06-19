@@ -12,40 +12,12 @@ import {
   ComposedChart,
 } from "recharts";
 
-/**
- * TrendGraph Component
- *
- * SOLID Principles:
- * - Single Responsibility: Renders severity metric trends only
- * - Dependency Inversion: Receives data as props, abstracted from data source
- * - Interface Segregation: Minimal required props (data, dateRange)
- * - Open/Closed: Easily extensible for new metrics without modification
- *
- * Performance Target: < 2 seconds load on 4G (SC-001)
- * Uses ResponsiveContainer for mobile responsiveness
- *
- * Data Structure Expected:
- * [
- *   {
- *     date: "2025-01-01",
- *     overallSeverity: 6.5,
- *     redness: 7.2,
- *     texture: 5.8,
- *     oiliness: 6.1,
- *     driness: 4.9,
- *   },
- *   ...
- * ]
- */
-
 export interface TrendData {
   date: string;
   overallSeverity: number;
+  acne?: number;
   redness?: number;
-  texture?: number;
-  oiliness?: number;
-  driness?: number;
-  confidence?: number;
+  under_eye_bags?: number;
 }
 
 export interface TrendGraphProps {
@@ -56,16 +28,16 @@ export interface TrendGraphProps {
   error?: string | null;
 }
 
-/**
- * Custom tooltip to display metric information
- */
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-slate-200 rounded shadow-lg">
-        <p className="text-sm font-medium text-slate-900">{label}</p>
+      <div
+        className="border border-skin-border rounded-xl px-3 py-2 shadow-md text-sm"
+        style={{ backgroundColor: "rgb(var(--color-surface))" }}
+      >
+        <p className="text-on-surface-variant text-xs mb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
-          <p key={index} style={{ color: entry.color }} className="text-sm">
+          <p key={index} style={{ color: entry.color }} className="font-medium">
             {entry.name}: {entry.value.toFixed(2)}
           </p>
         ))}
@@ -75,29 +47,17 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
   return null;
 };
 
-/**
- * Skeleton loader for graph while data is loading
- */
 const TrendGraphSkeleton: React.FC = () => (
   <div className="space-y-4">
-    <div className="h-80 bg-slate-100 rounded-lg animate-pulse"></div>
+    <div className="h-80 bg-surface-warm rounded-xl animate-pulse" />
     <div className="flex gap-2 flex-wrap">
-      {[1, 2, 3, 4].map((i) => (
-        <div
-          key={i}
-          className="h-8 w-32 bg-slate-100 rounded animate-pulse"
-        ></div>
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="h-8 w-32 bg-surface-warm rounded-xl animate-pulse" />
       ))}
     </div>
   </div>
 );
 
-/**
- * TrendGraph Component
- * Displays severity metrics as line chart with multiple data series
- *
- * Future Enhancement: Add comparison overlay, export chart as image
- */
 export const TrendGraph: React.FC<TrendGraphProps> = ({
   data,
   dateRangeStart,
@@ -107,258 +67,125 @@ export const TrendGraph: React.FC<TrendGraphProps> = ({
 }) => {
   const [chartType, setChartType] = useState<"line" | "composed">("line");
 
-  // Filter data by date range
   const filteredData = useMemo(() => {
     const start = dateRangeStart.getTime();
     const end = dateRangeEnd.getTime();
-
-    return data.filter((item) => {
+    return data.filter(item => {
       const itemDate = new Date(item.date).getTime();
       return itemDate >= start && itemDate <= end;
     });
   }, [data, dateRangeStart, dateRangeEnd]);
 
-  // Calculate statistics for display
   const statistics = useMemo(() => {
-    if (filteredData.length === 0) {
-      return {
-        avgSeverity: 0,
-        maxSeverity: 0,
-        minSeverity: 0,
-        trend: "stable",
-      };
-    }
-
-    const severities = filteredData.map((d) => d.overallSeverity);
+    if (filteredData.length === 0) return { avgSeverity: 0, maxSeverity: 0, minSeverity: 0, trend: "stable" };
+    const severities = filteredData.map(d => d.overallSeverity);
     const avg = severities.reduce((a, b) => a + b) / severities.length;
-    const max = Math.max(...severities);
-    const min = Math.min(...severities);
-
-    // Determine trend (improvement vs worsening)
     const first = severities[0];
     const last = severities[severities.length - 1];
-    const trend =
-      last < first ? "improving" : last > first ? "worsening" : "stable";
-
     return {
       avgSeverity: avg,
-      maxSeverity: max,
-      minSeverity: min,
-      trend,
+      maxSeverity: Math.max(...severities),
+      minSeverity: Math.min(...severities),
+      trend: last < first ? "improving" : last > first ? "worsening" : "stable",
     };
   }, [filteredData]);
 
   if (error) {
     return (
-      <div
-        className="bg-red-50 border border-red-200 rounded-lg p-4"
-        role="alert"
-        aria-live="polite"
-      >
-        <p className="text-red-700 text-sm">{error}</p>
+      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+        <p className="text-red-400 text-sm">{error}</p>
       </div>
     );
   }
 
-  if (isLoading) {
-    return <TrendGraphSkeleton />;
-  }
+  if (isLoading) return <TrendGraphSkeleton />;
 
   if (filteredData.length === 0) {
     return (
-      <div
-        className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center"
-        role="status"
-      >
-        <p className="text-slate-600">
-          No data available for the selected date range.
-        </p>
-        <p className="text-slate-500 text-sm mt-2">
-          Start taking daily selfies to see your skin's progress!
-        </p>
+      <div className="bg-surface-warm border border-skin-border rounded-xl p-8 text-center">
+        <p className="text-on-surface-variant text-sm">No data available for the selected date range.</p>
+        <p className="text-on-surface-variant/60 text-xs mt-2">Start taking daily selfies to see your skin's progress!</p>
       </div>
     );
   }
 
+  const statCards = [
+    { label: "Average Severity", value: `${statistics.avgSeverity.toFixed(1)}/10`, accent: "#C17F60" },
+    { label: "Trend", value: statistics.trend, capitalize: true, accent: statistics.trend === "improving" ? "#8B9E88" : statistics.trend === "worsening" ? "#D4607A" : "#B8A89C" },
+    { label: "Peak Severity", value: `${statistics.maxSeverity.toFixed(1)}/10`, accent: "#D4607A" },
+    { label: "Best Day", value: `${statistics.minSeverity.toFixed(1)}/10`, accent: "#8B9E88" },
+  ];
+
   return (
-    <div className="space-y-6" aria-label="Skin evolution trend visualization">
-      {/* Statistics Summary */}
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-        role="complementary"
-        aria-label="Trend statistics summary"
-      >
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-            Average Severity
-          </p>
-          <p
-            className="text-2xl font-bold text-blue-900 mt-2"
-            aria-label={`Average severity: ${statistics.avgSeverity.toFixed(1)} out of 10`}
-          >
-            {statistics.avgSeverity.toFixed(1)}/10
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
-          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">
-            Trend
-          </p>
-          <p
-            className="text-xl font-bold text-green-900 mt-2 capitalize"
-            aria-label={`Trend is: ${statistics.trend}`}
-          >
-            {statistics.trend}
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
-          <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
-            Peak Severity
-          </p>
-          <p
-            className="text-2xl font-bold text-orange-900 mt-2"
-            aria-label={`Peak severity: ${statistics.maxSeverity.toFixed(1)} out of 10`}
-          >
-            {statistics.maxSeverity.toFixed(1)}/10
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
-          <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">
-            Best Day
-          </p>
-          <p
-            className="text-2xl font-bold text-purple-900 mt-2"
-            aria-label={`Best day severity: ${statistics.minSeverity.toFixed(1)} out of 10`}
-          >
-            {statistics.minSeverity.toFixed(1)}/10
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map(card => (
+          <div key={card.label} className="bg-surface-warm rounded-xl border border-skin-border p-4">
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">{card.label}</p>
+            <p
+              className={`text-xl font-bold ${card.capitalize ? "capitalize" : ""}`}
+              style={{ color: card.accent }}
+            >
+              {card.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* Chart Type Toggle */}
-      <div
-        className="flex gap-2"
-        role="group"
-        aria-label="Chart display options"
-      >
-        <button
-          onClick={() => setChartType("line")}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            chartType === "line"
-              ? "bg-blue-600 text-white"
-              : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-          }`}
-          aria-pressed={chartType === "line"}
-          aria-label="Display trends as line chart"
-        >
-          Line Chart
-        </button>
-        <button
-          onClick={() => setChartType("composed")}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            chartType === "composed"
-              ? "bg-blue-600 text-white"
-              : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-          }`}
-          aria-pressed={chartType === "composed"}
-          aria-label="Display detailed metric breakdown"
-        >
-          Detailed Metrics
-        </button>
+      {/* Chart type toggle */}
+      <div className="flex gap-0.5 p-1 bg-surface-warm rounded-xl border border-skin-border w-fit">
+        {(["line", "composed"] as const).map(type => (
+          <button
+            key={type}
+            onClick={() => setChartType(type)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              chartType === type
+                ? "bg-surface text-on-surface shadow-sm border border-skin-border"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            {type === "line" ? "Line chart" : "Detailed metrics"}
+          </button>
+        ))}
       </div>
 
-      {/* Line Chart - Overall Severity Trend */}
-      {chartType === "line" && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Severity Over Time
-          </h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart
-              data={filteredData}
-              margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="date"
-                stroke="#94a3b8"
-                style={{ fontSize: "12px" }}
-                tick={{ fill: "#64748b" }}
-              />
-              <YAxis
-                domain={[0, 10]}
-                stroke="#94a3b8"
-                style={{ fontSize: "12px" }}
-                tick={{ fill: "#64748b" }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="overallSeverity"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: "#3b82f6", r: 4 }}
-                activeDot={{ r: 6 }}
-                isAnimationActive={true}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Composed Chart - All Metrics */}
-      {chartType === "composed" && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Detailed Metrics Breakdown
-          </h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <ComposedChart
-              data={filteredData}
-              margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="date"
-                stroke="#94a3b8"
-                style={{ fontSize: "12px" }}
-                tick={{ fill: "#64748b" }}
-              />
-              <YAxis
-                domain={[0, 10]}
-                stroke="#94a3b8"
-                style={{ fontSize: "12px" }}
-                tick={{ fill: "#64748b" }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="overallSeverity"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Bar dataKey="acne" fill="#ef4444" opacity={0.7} />
-              <Bar dataKey="inflammation" fill="#f59e0b" opacity={0.7} />
-              <Bar dataKey="redness" fill="#8b5cf6" opacity={0.7} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Data Point Count Info */}
-      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-        <p className="text-sm text-slate-600">
-          📊 Analysis based on {filteredData.length} data point
-          {filteredData.length !== 1 ? "s" : ""} from{" "}
-          {dateRangeStart.toLocaleDateString()} to{" "}
-          {dateRangeEnd.toLocaleDateString()}
+      {/* Chart */}
+      <div className="rounded-xl border border-skin-border p-5" style={{ backgroundColor: "rgb(var(--color-surface))" }}>
+        <p className="text-sm font-semibold text-on-surface mb-4">
+          {chartType === "line" ? "Severity Over Time" : "Detailed Metrics Breakdown"}
         </p>
+        <ResponsiveContainer width="100%" height={300}>
+          {chartType === "line" ? (
+            <LineChart data={filteredData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(var(--color-on-surface), 0.08)" />
+              <XAxis dataKey="date" stroke="rgba(var(--color-on-surface-variant), 0.5)" tick={{ fill: "rgb(var(--color-on-surface-variant))", fontSize: 11 }} />
+              <YAxis domain={[0, 10]} stroke="rgba(var(--color-on-surface-variant), 0.5)" tick={{ fill: "rgb(var(--color-on-surface-variant))", fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ color: "rgb(var(--color-on-surface-variant))", fontSize: 12 }} />
+              <Line type="monotone" dataKey="overallSeverity" name="Overall" stroke="#C17F60" strokeWidth={2} dot={{ fill: "#C17F60", r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          ) : (
+            <ComposedChart data={filteredData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(var(--color-on-surface), 0.08)" />
+              <XAxis dataKey="date" stroke="rgba(var(--color-on-surface-variant), 0.5)" tick={{ fill: "rgb(var(--color-on-surface-variant))", fontSize: 11 }} />
+              <YAxis domain={[0, 10]} stroke="rgba(var(--color-on-surface-variant), 0.5)" tick={{ fill: "rgb(var(--color-on-surface-variant))", fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ color: "rgb(var(--color-on-surface-variant))", fontSize: 12 }} />
+              <Line type="monotone" dataKey="overallSeverity" name="Overall" stroke="#C17F60" strokeWidth={2} dot={false} />
+              <Bar dataKey="acne" name="Acne" fill="#D4607A" opacity={0.7} />
+              <Bar dataKey="under_eye_bags" name="Under Eye Bags" fill="#C17F60" opacity={0.7} />
+              <Bar dataKey="redness" name="Redness" fill="#8B9E88" opacity={0.7} />
+            </ComposedChart>
+          )}
+        </ResponsiveContainer>
       </div>
+
+      {/* Data point info */}
+      <p className="text-xs text-on-surface-variant">
+        {filteredData.length} data point{filteredData.length !== 1 ? "s" : ""} from{" "}
+        {dateRangeStart.toLocaleDateString()} to {dateRangeEnd.toLocaleDateString()}
+      </p>
     </div>
   );
 };

@@ -2,11 +2,6 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { registerWithEmail } from "../../services/authService";
 
-/**
- * Email Registration Component
- * Allows new users to register with email and password
- * Displays validation feedback and sends confirmation email
- */
 export function EmailRegister() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -17,54 +12,20 @@ export function EmailRegister() {
   const [registered, setRegistered] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
 
-  // Validate password strength
-  const isPasswordStrong = (): boolean => {
-    if (password.length < 8) return false;
-    if (!/[A-Z]/.test(password)) return false;
-    if (!/[0-9]/.test(password)) return false;
-    return true;
-  };
+  const isPasswordStrong = (): boolean =>
+    password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-
-    // Validation
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address");
-      return;
-    }
-
-    if (!password) {
-      setError("Password is required");
-      return;
-    }
-
-    if (!isPasswordStrong()) {
-      setError(
-        "Password must be at least 8 characters with 1 uppercase letter and 1 number",
-      );
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
+    if (!email.trim()) { setError("Email is required"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email address"); return; }
+    if (!password) { setError("Password is required"); return; }
+    if (!isPasswordStrong()) { setError("Password must be at least 8 characters with 1 uppercase letter and 1 number"); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match"); return; }
     try {
       setIsLoading(true);
-      await registerWithEmail({
-        email: email.toLowerCase(),
-        password,
-        confirmPassword,
-      });
-
+      await registerWithEmail({ email: email.toLowerCase(), password, confirmPassword });
       setRegistered(true);
       setRegisteredEmail(email);
     } catch (err) {
@@ -74,192 +35,144 @@ export function EmailRegister() {
     }
   };
 
-  // Success state - show confirmation email sent message
   if (registered) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-8 max-w-md w-full">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-emerald-300"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+          <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary/8 blur-3xl" />
+          <div className="absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-secondary/10 blur-3xl" />
+        </div>
+        <div className="relative w-full max-w-md">
+          <div className="text-center mb-10">
+            <h1 className="font-display text-4xl text-primary tracking-wide">SkinProgress</h1>
+          </div>
+          <div className="bg-surface rounded-3xl border border-skin-border shadow-sm p-8 text-center">
+            <div className="w-14 h-14 bg-secondary/15 rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg className="w-7 h-7 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-on-surface mb-2">
-              Check Your Email
-            </h2>
-            <p className="text-on-surface-variant">
-              We sent a confirmation link to <strong>{registeredEmail}</strong>
+            <h2 className="font-display text-2xl text-on-surface mb-2">Check your email</h2>
+            <p className="text-on-surface-variant text-sm mb-1">We sent a confirmation link to</p>
+            <p className="text-on-surface font-medium text-sm mb-6">{registeredEmail}</p>
+            <p className="text-xs text-on-surface-variant bg-surface-warm border border-skin-border rounded-xl px-4 py-3 mb-6">
+              Click the link in your email to activate your account. It expires in 48 hours.
             </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate("/confirm-email")}
+                className="w-full bg-primary hover:bg-primary-hover text-on-primary py-3 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md"
+              >
+                Have a code? Confirm here
+              </button>
+              <button
+                onClick={() => navigate("/login")}
+                className="w-full border-2 border-skin-border bg-surface-warm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary py-3 rounded-xl text-sm font-medium"
+              >
+                Back to login
+              </button>
+            </div>
           </div>
-
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-200">
-              Click the confirmation link in the email to activate your account.
-              The link expires in 48 hours.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate("/confirm-email")}
-              className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 transition-all duration-300"
-            >
-              Have a Code? Confirm Here
-            </button>
-            <button
-              onClick={() => navigate("/login")}
-              className="w-full border border-slate-700 text-on-surface-variant py-3 px-4 rounded-lg font-semibold hover:bg-slate-800/50 transition-all duration-300"
-            >
-              Back to Login
-            </button>
-          </div>
-
-          <p className="text-center text-sm text-on-surface-variant mt-6">
-            Didn't receive the email?{" "}
-            <button className="text-purple-300 hover:text-purple-200 font-medium">
-              Request a new link
-            </button>
-          </p>
         </div>
       </div>
     );
   }
 
-  // Registration form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-8 max-w-md w-full">
-        <h1 className="text-3xl font-bold text-on-surface mb-2">
-          Create Account
-        </h1>
-        <p className="text-on-surface-variant mb-6">
-          Join SkinProgress to track your skin evolution
-        </p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-primary/8 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-secondary/10 blur-3xl" />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email Field */}
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-on-surface mb-1"
-            >
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
-            />
-          </div>
+      <div className="relative w-full max-w-md">
+        <div className="text-center mb-10">
+          <h1 className="font-display text-4xl text-primary tracking-wide">SkinProgress</h1>
+          <p className="text-on-surface-variant text-sm mt-2">Your personal skin journal</p>
+        </div>
 
-          {/* Password Field */}
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-on-surface mb-1"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
-            />
-            {password && (
-              <div className="mt-2 text-sm space-y-1">
-                <div
-                  className={`flex items-center gap-2 ${
-                    password.length >= 8 ? "text-emerald-300" : "text-red-300"
-                  }`}
-                >
-                  {password.length >= 8 ? "✓" : "○"} At least 8 characters
+        <div className="bg-surface rounded-3xl border border-skin-border shadow-sm p-8">
+          <h2 className="font-display text-2xl text-on-surface mb-1">Create account</h2>
+          <p className="text-on-surface-variant text-sm mb-7">Start tracking your skin's journey</p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Email</label>
+              <input
+                id="email" type="email" value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition"
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Password</label>
+              <input
+                id="password" type="password" value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition"
+                disabled={isLoading}
+              />
+              {password && (
+                <div className="mt-2.5 space-y-1.5">
+                  {[
+                    { ok: password.length >= 8, label: "At least 8 characters" },
+                    { ok: /[A-Z]/.test(password), label: "One uppercase letter" },
+                    { ok: /[0-9]/.test(password), label: "One number" },
+                  ].map(({ ok, label }) => (
+                    <div key={label} className={`flex items-center gap-2 text-xs ${ok ? "text-green-600" : "text-on-surface-variant/60"}`}>
+                      {ok ? (
+                        <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-on-surface-variant/30" />
+                      )}
+                      {label}
+                    </div>
+                  ))}
                 </div>
-                <div
-                  className={`flex items-center gap-2 ${
-                    /[A-Z]/.test(password) ? "text-emerald-300" : "text-red-300"
-                  }`}
-                >
-                  {/[A-Z]/.test(password) ? "✓" : "○"} One uppercase letter
-                </div>
-                <div
-                  className={`flex items-center gap-2 ${
-                    /[0-9]/.test(password) ? "text-emerald-300" : "text-red-300"
-                  }`}
-                >
-                  {/[0-9]/.test(password) ? "✓" : "○"} One number
-                </div>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Confirm password</label>
+              <input
+                id="confirmPassword" type="password" value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition"
+                disabled={isLoading}
+              />
+              {confirmPassword && password !== confirmPassword && (
+                <p className="mt-1.5 text-xs text-red-500">Passwords do not match</p>
+              )}
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <p className="text-sm text-red-700">{error}</p>
               </div>
             )}
-          </div>
 
-          {/* Confirm Password Field */}
-          <div>
-            <label
-              htmlFor="confirmPassword"
-              className="block text-sm font-medium text-on-surface mb-1"
+            <button
+              type="submit" disabled={isLoading}
+              className="w-full bg-bloom hover:bg-bloom-hover text-white py-3 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Confirm Password
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
-            />
-            {confirmPassword && password !== confirmPassword && (
-              <p className="mt-1 text-sm text-red-300">
-                Passwords do not match
-              </p>
-            )}
-          </div>
+              {isLoading ? "Creating account…" : "Create account"}
+            </button>
+          </form>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-          >
-            {isLoading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-
-        {/* Login Link */}
-        <p className="text-center text-sm text-on-surface-variant mt-6">
-          Already have an account?{" "}
-          <button
-            onClick={() => navigate("/login")}
-            className="text-purple-300 hover:text-purple-200 font-medium"
-          >
-            Login here
-          </button>
-        </p>
+          <p className="text-center text-sm text-on-surface-variant mt-6">
+            Already have an account?{" "}
+            <button onClick={() => navigate("/login")} className="text-primary hover:text-primary-hover font-medium transition">
+              Sign in
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );

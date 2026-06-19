@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import SelfieCamera, {
-  type SelfieCameraHandle,
-} from "../components/SelfieCamera";
+import SelfieCamera, { type SelfieCameraHandle } from "../components/SelfieCamera";
 import { getAuthToken } from "../services/authService";
 import { habitsService } from "../services/habitsService";
 
@@ -13,6 +11,8 @@ interface User {
   role: string;
   profilePictureUrl: string;
   lastSelfieAt: string | null;
+  firstName?: string;
+  lastName?: string;
 }
 
 type SelfieAngle = "front" | "left" | "right";
@@ -30,9 +30,7 @@ interface SelfieDay {
 }
 
 type HabitKey = "cleaning" | "hydration" | "spf";
-
 type HabitDayRecord = Record<HabitKey, boolean>;
-
 type LockState = "unchecked" | "checked" | "locked";
 
 type SelfiesApiItem = {
@@ -46,10 +44,10 @@ type SelfiesApiItem = {
 
 const REQUIRED_ANGLES: SelfieAngle[] = ["front", "left", "right"];
 
-const DAILY_HABITS: { key: HabitKey; label: string }[] = [
-  { key: "cleaning", label: "Cleanse" },
-  { key: "hydration", label: "Hydrate" },
-  { key: "spf", label: "SPF" },
+const DAILY_HABITS: { key: HabitKey; label: string; emoji: string }[] = [
+  { key: "cleaning",  label: "Cleanse",  emoji: "🫧" },
+  { key: "hydration", label: "Hydrate",  emoji: "💧" },
+  { key: "spf",       label: "SPF",      emoji: "☀️" },
 ];
 
 const HABIT_NAMES: Record<HabitKey, string> = {
@@ -58,45 +56,22 @@ const HABIT_NAMES: Record<HabitKey, string> = {
   spf: "SPF",
 };
 
-
-
-// Get today's date key using UTC (consistent with database storage)
 const getTodayDateKeyUTC = (): string => {
   const date = new Date();
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 };
 
-// Get a UTC date key for any date
-const getUTCDateKey = (date: Date): string => {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const getUTCDateKey = (date: Date): string =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 
-// Parse a database date string (ISO 8601) and return date key
 const parseDatabaseDateKey = (dateString: string): string => {
-  // Parse ISO date string and extract just the date part without timezone conversion
   const date = new Date(dateString);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getUTCDateKey(date);
 };
 
-const createEmptyHabitRecord = (): HabitDayRecord => ({
-  cleaning: false,
-  hydration: false,
-  spf: false,
-});
+const createEmptyHabitRecord = (): HabitDayRecord => ({ cleaning: false, hydration: false, spf: false });
 
-
-
-const isHabitDayComplete = (record: HabitDayRecord) =>
-  record.cleaning && record.hydration && record.spf;
+const isHabitDayComplete = (record: HabitDayRecord) => record.cleaning && record.hydration && record.spf;
 
 const calculateHabitStreak = (entries: Record<string, HabitDayRecord>) => {
   const hasCompleteEntry = (offsetDays: number) => {
@@ -105,44 +80,32 @@ const calculateHabitStreak = (entries: Record<string, HabitDayRecord>) => {
     const entry = entries[getUTCDateKey(date)];
     return entry ? isHabitDayComplete(entry) : false;
   };
-
   const startOffset = hasCompleteEntry(0) ? 0 : 1;
   if (!hasCompleteEntry(startOffset)) return 0;
-
   let streak = 0;
-  while (hasCompleteEntry(startOffset + streak)) {
-    streak++;
-  }
-
+  while (hasCompleteEntry(startOffset + streak)) streak++;
   return streak;
 };
 
 const getUserIdFromToken = () => {
-  // First check if userId is stored directly (from local email login)
   const storedUserId = localStorage.getItem("userId");
   if (storedUserId) return storedUserId;
-
-  // Otherwise try to extract from JWT (from OAuth login)
   const token = localStorage.getItem("jwt");
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload[
-      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-    ];
+    return payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
   } catch {
     return null;
   }
 };
 
 const formatAngleLabel = (angle: SelfieAngle) => {
-  if (angle === "left") return "Left side";
-  if (angle === "right") return "Right side";
+  if (angle === "left") return "Left";
+  if (angle === "right") return "Right";
   return "Front";
 };
 
-// Converts any date string to a UTC "YYYY-MM-DD" key, matching the backend's
-// CaptureDate which is always stored as DateTime.UtcNow.Date.
 const toUtcDayKey = (dateStr: string): string => {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
@@ -151,54 +114,40 @@ const toUtcDayKey = (dateStr: string): string => {
 
 const normalizeSelfieDays = (items: unknown): SelfieDay[] => {
   if (!Array.isArray(items)) return [];
-
   const dayMap = new Map<string, SelfiePhoto[]>();
-
   for (const rawItem of items as SelfiesApiItem[]) {
-    if (
-      rawItem &&
-      typeof rawItem === "object" &&
-      Array.isArray(rawItem.photos)
-    ) {
+    if (rawItem && typeof rawItem === "object" && Array.isArray(rawItem.photos)) {
       const dayDate = rawItem.date ?? rawItem.photos[0]?.uploadedAt;
       if (!dayDate) continue;
-
-      const normalizedPhotos = rawItem.photos.filter(
-        (photo) => !!photo?.url && !!photo?.uploadedAt,
-      );
+      const normalizedPhotos = rawItem.photos.filter(photo => !!photo?.url && !!photo?.uploadedAt);
       dayMap.set(toUtcDayKey(dayDate), normalizedPhotos);
       continue;
     }
-
     if (rawItem?.url && rawItem?.uploadedAt) {
       const bucketDate = toUtcDayKey(rawItem.uploadedAt);
       const currentPhotos = dayMap.get(bucketDate) ?? [];
-      currentPhotos.push({
-        url: rawItem.url,
-        uploadedAt: rawItem.uploadedAt,
-        angle: rawItem.angle ?? null,
-      });
+      currentPhotos.push({ url: rawItem.url, uploadedAt: rawItem.uploadedAt, angle: rawItem.angle ?? null });
       dayMap.set(bucketDate, currentPhotos);
     }
   }
-
   return Array.from(dayMap.entries())
     .map(([date, photos]) => {
       const dayAngles = photos
-        .map((photo) => photo.angle)
-        .filter(
-          (angle): angle is SelfieAngle =>
-            angle === "front" || angle === "left" || angle === "right",
-        );
-
-      return {
-        date,
-        photos,
-        isComplete: REQUIRED_ANGLES.every((angle) => dayAngles.includes(angle)),
-      };
+        .map(p => p.angle)
+        .filter((a): a is SelfieAngle => a === "front" || a === "left" || a === "right");
+      return { date, photos, isComplete: REQUIRED_ANGLES.every(a => dayAngles.includes(a)) };
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
+
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+};
+
+// ─────────────────────────────────────────────
 
 const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -206,19 +155,13 @@ const ProfilePage = () => {
   const [selfie, setSelfie] = useState<string | null>(null);
   const [selfieDays, setSelfieDays] = useState<SelfieDay[]>([]);
   const [totalSets, setTotalSets] = useState(0);
-  const [completedAnglesToday, setCompletedAnglesToday] = useState<
-    SelfieAngle[]
-  >([]);
+  const [completedAnglesToday, setCompletedAnglesToday] = useState<SelfieAngle[]>([]);
   const hasTakenDailySelfie = completedAnglesToday.length === REQUIRED_ANGLES.length;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  const [habitEntries, setHabitEntries] = useState<
-    Record<string, HabitDayRecord>
-  >({});
-  const [habitLockState, setHabitLockState] = useState<
-    Record<HabitKey, LockState>
-  >({ cleaning: "unchecked", hydration: "unchecked", spf: "unchecked" });
+  const [habitEntries, setHabitEntries] = useState<Record<string, HabitDayRecord>>({});
+  const [habitLockState, setHabitLockState] = useState<Record<HabitKey, LockState>>({ cleaning: "unchecked", hydration: "unchecked", spf: "unchecked" });
   const [userBadges, setUserBadges] = useState<any[]>([]);
   const [_, setHabitsLoading] = useState(false);
   const selfieCameraRef = useRef<SelfieCameraHandle>(null);
@@ -226,123 +169,52 @@ const ProfilePage = () => {
   const currentUserId = getUserIdFromToken();
   const todayHabitKey = getTodayDateKeyUTC();
 
-  const completedHabitDays = Object.values(habitEntries).filter((entry) =>
-    isHabitDayComplete(entry),
-  ).length;
+  const completedHabitDays = Object.values(habitEntries).filter(e => isHabitDayComplete(e)).length;
   const habitStreak = calculateHabitStreak(habitEntries);
 
   const badges = [
-    {
-      title: "Consistency 3 Days",
-      description: "Complete your routine for 3 days in a row",
-      unlocked:
-        habitStreak >= 3 ||
-        userBadges.some((b) => b.badgeCode === "CONSISTENCY_3"),
-    },
-    {
-      title: "Consistency 7 Days",
-      description: "Complete your routine for 7 days in a row",
-      unlocked:
-        habitStreak >= 7 ||
-        userBadges.some((b) => b.badgeCode === "CONSISTENCY_7"),
-    },
-    {
-      title: "Progress 10 Days",
-      description: "Complete 10 total days",
-      unlocked:
-        completedHabitDays >= 10 ||
-        userBadges.some((b) => b.badgeCode === "PROGRESS_10"),
-    },
-    {
-      title: "Progress 30 Days",
-      description: "Complete 30 total days",
-      unlocked:
-        completedHabitDays >= 30 ||
-        userBadges.some((b) => b.badgeCode === "PROGRESS_30"),
-    },
+    { title: "3-Day Streak",   description: "Complete your routine 3 days in a row",   unlocked: habitStreak >= 3  || userBadges.some(b => b.badgeCode === "CONSISTENCY_3") },
+    { title: "7-Day Streak",   description: "Complete your routine 7 days in a row",   unlocked: habitStreak >= 7  || userBadges.some(b => b.badgeCode === "CONSISTENCY_7") },
+    { title: "10 Total Days",  description: "Complete 10 total days",                   unlocked: completedHabitDays >= 10 || userBadges.some(b => b.badgeCode === "PROGRESS_10") },
+    { title: "30 Total Days",  description: "Complete 30 total days",                   unlocked: completedHabitDays >= 30 || userBadges.some(b => b.badgeCode === "PROGRESS_30") },
   ];
 
   const calculateStreak = () => {
     const completeDays = selfieDays
-      .filter((day) => (day.photos?.length ?? 0) > 0)
-      .map((day) => new Date(day.date));
-
+      .filter(day => (day.photos?.length ?? 0) > 0)
+      .map(day => new Date(day.date));
     if (completeDays.length === 0) return 0;
-
     completeDays.sort((a, b) => b.getTime() - a.getTime());
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const mostRecentDate = new Date(completeDays[0]);
-    mostRecentDate.setHours(0, 0, 0, 0);
-
-    const daysSinceLastSet = Math.floor(
-      (today.getTime() - mostRecentDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (daysSinceLastSet > 1) {
-      return 0;
-    }
-
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const mostRecent = new Date(completeDays[0]); mostRecent.setHours(0, 0, 0, 0);
+    if (Math.floor((today.getTime() - mostRecent.getTime()) / 86400000) > 1) return 0;
     let streak = 1;
     for (let i = 0; i < completeDays.length - 1; i++) {
-      const currentDate = new Date(completeDays[i]);
-      currentDate.setHours(0, 0, 0, 0);
-
-      const nextDate = new Date(completeDays[i + 1]);
-      nextDate.setHours(0, 0, 0, 0);
-
-      const diffTime = currentDate.getTime() - nextDate.getTime();
-      const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-      if (diffDays === 1) {
-        streak++;
-      } else {
-        break;
-      }
+      const curr = new Date(completeDays[i]); curr.setHours(0, 0, 0, 0);
+      const next = new Date(completeDays[i + 1]); next.setHours(0, 0, 0, 0);
+      if ((curr.getTime() - next.getTime()) / 86400000 === 1) streak++;
+      else break;
     }
-
     return streak;
   };
 
   const fetchSelfieDays = useCallback(async () => {
     const token = getAuthToken();
     if (!token || !userId) return;
-
     try {
-      const response = await fetch(
-        `/api/users/${userId}/selfies?page=1&pageSize=1`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
+      const response = await fetch(`/api/users/${userId}/selfies?page=1&pageSize=1`, { headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) return;
-
       const data = await response.json();
       const days = normalizeSelfieDays(data?.selfies);
       setSelfieDays(days);
       setTotalSets(data?.totalPages ?? 0);
-
-      // Use UTC date to match the backend's CaptureDate (DateTime.UtcNow.Date)
       const todayUTC = new Date().toISOString().split("T")[0];
-      const todayEntry = days.find((day) => day.date === todayUTC);
-
-      // Only update completed angles if today's entry is found from the server.
-      // If not found (e.g. the UTC date doesn't match local date at midnight),
-      // preserve the current state rather than resetting to empty.
+      const todayEntry = days.find(day => day.date === todayUTC);
       if (todayEntry !== undefined) {
         const todayAngles = todayEntry.photos
-          .map((photo) => photo.angle)
-          .filter(
-            (angle): angle is SelfieAngle =>
-              angle === "front" || angle === "left" || angle === "right",
-          )
-          .filter((angle, index, arr) => arr.indexOf(angle) === index);
-
+          .map(p => p.angle)
+          .filter((a): a is SelfieAngle => a === "front" || a === "left" || a === "right")
+          .filter((a, i, arr) => arr.indexOf(a) === i);
         setCompletedAnglesToday(todayAngles);
       }
     } catch (error) {
@@ -352,204 +224,109 @@ const ProfilePage = () => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      // Try both accessToken (local email login) and jwt (OAuth login)
       const token = localStorage.getItem("accessToken") || localStorage.getItem("jwt");
       if (!token) return;
-
       try {
-        const response = await fetch(`/api/users/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
+        const response = await fetch(`/api/users/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
         if (response.ok) {
           const userData = await response.json();
+          console.log("User data received:", { firstName: userData.firstName, lastName: userData.lastName, username: userData.username });
           setUser(userData);
-        } else {
-          localStorage.removeItem("jwt");
-          localStorage.removeItem("accessToken");
-          navigate("/login");
         }
+        else { localStorage.removeItem("jwt"); localStorage.removeItem("accessToken"); navigate("/login"); }
       } catch (error) {
         console.error("Failed to fetch user", error);
       }
     };
-
     fetchUser();
   }, [userId, navigate]);
 
-  useEffect(() => {
-    fetchSelfieDays();
-  }, [fetchSelfieDays]);
+  useEffect(() => { fetchSelfieDays(); }, [fetchSelfieDays]);
 
-  // Fetch habits and badges from database
   useEffect(() => {
     const loadHabitsAndBadges = async () => {
       try {
         setHabitsLoading(true);
-
-        // Initialize habits if not already done
-        try {
-          console.log("DEBUG: Initializing habits...");
-          await habitsService.initializeHabits();
-          console.log("DEBUG: Habits initialized successfully");
-        } catch (e) {
-          console.error("ERROR: Failed to initialize habits", e);
-        }
-
-        // Fetch last 60 days of habit data for calculations
+        try { await habitsService.initializeHabits(); } catch {}
         const endDate = new Date();
         const startDate = new Date();
         startDate.setUTCDate(startDate.getUTCDate() - 60);
-
         try {
-          const habitRange = await habitsService.getHabitRange(
-            startDate,
-            endDate,
-          );
-
-          // Convert to the same format as our local state
+          const habitRange = await habitsService.getHabitRange(startDate, endDate);
           const habitMap: Record<string, HabitDayRecord> = {};
-          habitRange.forEach((day) => {
-            // Use UTC date parsing to avoid timezone issues
+          habitRange.forEach(day => {
             const dateStr = parseDatabaseDateKey(day.date);
             habitMap[dateStr] = {
-              cleaning: day.habits.some(
-                (h) => h.habitName === "Cleanse" && h.isCompleted,
-              ),
-              hydration: day.habits.some(
-                (h) => h.habitName === "Hydrate" && h.isCompleted,
-              ),
-              spf: day.habits.some(
-                (h) => h.habitName === "SPF" && h.isCompleted,
-              ),
+              cleaning:  day.habits.some(h => h.habitName === "Cleanse"  && h.isCompleted),
+              hydration: day.habits.some(h => h.habitName === "Hydrate"  && h.isCompleted),
+              spf:       day.habits.some(h => h.habitName === "SPF"      && h.isCompleted),
             };
           });
-
           setHabitEntries(habitMap);
           const todayRecord = habitMap[todayHabitKey];
           if (todayRecord) {
             setHabitLockState({
-              cleaning: todayRecord.cleaning ? "locked" : "unchecked",
+              cleaning:  todayRecord.cleaning  ? "locked" : "unchecked",
               hydration: todayRecord.hydration ? "locked" : "unchecked",
-              spf: todayRecord.spf ? "locked" : "unchecked",
+              spf:       todayRecord.spf       ? "locked" : "unchecked",
             });
           }
-        } catch (e) {
-          console.warn("Failed to fetch habit range, using empty habits", e);
-          setHabitEntries({});
-        }
-
-        // Fetch user badges
-        try {
-          const badges = await habitsService.getUserBadges();
-          setUserBadges(badges);
-        } catch (e) {
-          console.warn("Failed to fetch badges, using empty badges", e);
-          setUserBadges([]);
-        }
-      } catch (error) {
-        console.error("Failed to load habits and badges", error);
-      } finally {
+        } catch { setHabitEntries({}); }
+        try { setUserBadges(await habitsService.getUserBadges()); } catch { setUserBadges([]); }
+      } catch {} finally {
         setHabitsLoading(false);
       }
     };
-
     loadHabitsAndBadges();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("jwt");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userEmail");
-    navigate("/login");
-  };
-
-  const handleSelfieCapture = (image: string) => {
-    setSelfie(image || null);
-    setUploadError(null);
-  };
-
-  const handleRetakeSelfie = useCallback(() => {
-    selfieCameraRef.current?.resetCapture();
-    setSelfie(null);
-    setUploadError(null);
-  }, []);
+  const handleSelfieCapture = (image: string) => { setSelfie(image || null); setUploadError(null); };
+  const handleRetakeSelfie  = useCallback(() => { selfieCameraRef.current?.resetCapture(); setSelfie(null); setUploadError(null); }, []);
 
   const handleHabitToggle = (habit: HabitKey) => {
-    setHabitLockState((prev) => {
+    setHabitLockState(prev => {
       if (prev[habit] === "locked") return prev;
-      return {
-        ...prev,
-        [habit]: prev[habit] === "checked" ? "unchecked" : "checked",
-      };
+      return { ...prev, [habit]: prev[habit] === "checked" ? "unchecked" : "checked" };
     });
   };
 
   const handleLockIn = async (habit: HabitKey) => {
-    setHabitLockState((prev) => ({ ...prev, [habit]: "locked" }));
+    setHabitLockState(prev => ({ ...prev, [habit]: "locked" }));
     try {
       await habitsService.completeHabit(HABIT_NAMES[habit]);
-      setHabitEntries((prev) => {
+      setHabitEntries(prev => {
         const current = prev[todayHabitKey] ?? createEmptyHabitRecord();
         return { ...prev, [todayHabitKey]: { ...current, [habit]: true } };
       });
-    } catch (error) {
-      setHabitLockState((prev) => ({ ...prev, [habit]: "checked" }));
-      console.error("Failed to lock in habit:", error);
+    } catch {
+      setHabitLockState(prev => ({ ...prev, [habit]: "checked" }));
     }
   };
 
-  const nextRequiredAngle = REQUIRED_ANGLES.find(
-    (angle) => !completedAnglesToday.includes(angle),
-  );
+  const nextRequiredAngle = REQUIRED_ANGLES.find(a => !completedAnglesToday.includes(a));
 
   const handleUpload = async () => {
     if (!selfie || !nextRequiredAngle) return;
-
     setUploadError(null);
     setUploading(true);
-
     const token = localStorage.getItem("accessToken") || localStorage.getItem("jwt");
     const formData = new FormData();
-    const blob = await fetch(selfie).then((res) => res.blob());
+    const blob = await fetch(selfie).then(r => r.blob());
     formData.append("file", blob, `${nextRequiredAngle}-selfie.jpg`);
     formData.append("angle", nextRequiredAngle);
-
     try {
-      const response = await fetch("/api/users/selfie", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
+      const response = await fetch("/api/users/selfie", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData });
       if (response.ok) {
-        // Optimistically advance the angle tracker immediately — don't rely solely
-        // on fetchSelfieDays, which can miss today's photos when the UTC date and
-        // local date differ (e.g. UTC+3 users between midnight and 3 AM).
-        setCompletedAnglesToday((prev) =>
-          nextRequiredAngle && !prev.includes(nextRequiredAngle)
-            ? [...prev, nextRequiredAngle]
-            : prev,
-        );
+        setCompletedAnglesToday(prev => nextRequiredAngle && !prev.includes(nextRequiredAngle) ? [...prev, nextRequiredAngle] : prev);
         selfieCameraRef.current?.resetCapture();
         setSelfie(null);
-        // Refresh display data in the background (non-critical)
         fetchSelfieDays().catch(() => {});
       } else {
         const errorData = await response.json().catch(() => null);
-        setUploadError(
-          errorData?.message || "Failed to upload selfie. Please try again.",
-        );
+        setUploadError(errorData?.message || "Failed to upload selfie. Please try again.");
       }
-    } catch (error) {
+    } catch {
       setUploadError("An error occurred during upload. Please try again.");
-      console.error("Failed to upload selfie", error);
     } finally {
       setUploading(false);
     }
@@ -559,308 +336,235 @@ const ProfilePage = () => {
     setRestarting(true);
     setUploadError(null);
     try {
-      console.log("Starting to delete today's selfies...");
       await habitsService.deleteTodaysSelfies();
-      console.log("Selfies deleted successfully, fetching updated data...");
       await fetchSelfieDays();
-      console.log("Fetch complete, resetting UI state...");
       setCompletedAnglesToday([]);
       setSelfie(null);
       selfieCameraRef.current?.resetCapture();
-      console.log("Restart completed successfully");
     } catch (error) {
-      console.error("Failed to restart selfies:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to restart selfies. Please try again.";
-      setUploadError(errorMessage);
+      setUploadError(error instanceof Error ? error.message : "Failed to restart selfies. Please try again.");
     } finally {
       setRestarting(false);
     }
   };
 
-  const getPhotoForAngle = (
-    photos: SelfiePhoto[] | undefined,
-    angle: SelfieAngle,
-  ) => (photos ?? []).find((photo) => photo.angle === angle);
+  const getPhotoForAngle = (photos: SelfiePhoto[] | undefined, angle: SelfieAngle) =>
+    (photos ?? []).find(p => p.angle === angle);
 
   const latestSelfieDay = selfieDays[0] ?? null;
 
+  // ── Loading state ──
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-on-surface flex justify-center items-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-          <p className="text-on-surface-variant">Loading...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm text-on-surface-variant">Loading your journal…</p>
         </div>
       </div>
     );
   }
 
+  // ── Page ──
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 font-sans">
-      <header className="bg-surface/50 backdrop-blur-md border-b border-slate-700 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-blue-300 leading-relaxed">
-              SkinProgress
-            </h1>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-fit py-2 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-sm sm:text-base"
-          >
-            Logout
-          </button>
+    <div className="bg-background min-h-screen">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+
+        {/* ── Greeting header ── */}
+        <div className="space-y-1">
+          <h2 className="font-display text-4xl sm:text-5xl text-on-surface">
+            {getGreeting()}, <span className="italic text-primary">{user.firstName || user.username.split(" ")[0]}</span>.
+          </h2>
+          <p className="text-on-surface-variant text-sm">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </p>
         </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="sm:col-span-1">
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors">
-              <img
-                className="w-32 h-32 mx-auto rounded-2xl object-cover mb-4 ring-2 ring-purple-500/50"
-                src={
-                  user.profilePictureUrl || "https://via.placeholder.com/150"
-                }
-                onError={(event) => {
-                  event.currentTarget.src = "https://via.placeholder.com/150";
-                }}
-                alt="Profile"
-              />
-              <h2 className="text-2xl font-bold text-on-surface mb-1">
-                {user.username}
-              </h2>
-              <p className="text-on-surface-variant text-sm break-all">
-                {user.email}
-              </p>
-            </div>
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-surface rounded-2xl border border-skin-border p-5">
+            <p className="text-[11px] font-medium text-on-surface-variant uppercase tracking-widest mb-3">Photo sets</p>
+            <p className="font-display text-5xl text-primary leading-none">{totalSets}</p>
           </div>
-
-          <div className="sm:col-span-2 grid grid-cols-2 gap-4">
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 hover:border-blue-500/50 transition-colors">
-              <p className="text-on-surface-variant text-sm uppercase tracking-wide mb-2">
-                Daily Sets
-              </p>
-              <p className="text-4xl font-bold text-blue-400">{totalSets}</p>
-            </div>
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 hover:border-purple-500/50 transition-colors">
-              <p className="text-on-surface-variant text-sm uppercase tracking-wide mb-2">
-                Streak Status
-              </p>
-              <p className="text-4xl font-bold text-purple-400">
-                {calculateStreak()}
-              </p>
-            </div>
+          <div className="bg-surface rounded-2xl border border-skin-border p-5">
+            <p className="text-[11px] font-medium text-on-surface-variant uppercase tracking-widest mb-3">Day streak</p>
+            <p className="font-display text-5xl text-bloom leading-none">{calculateStreak()}</p>
           </div>
-        </section>
+        </div>
 
+        {/* ── Daily selfie capture ── */}
         {currentUserId === userId && !hasTakenDailySelfie && (
-          <section className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 sm:p-8 hover:border-purple-500/50 transition-colors">
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold text-on-surface mb-2">
-                Daily Selfie
-              </h3>
-              <p className="text-on-surface-variant text-sm">
-                Take one selfie for today.
+          <section className="bg-surface rounded-2xl border border-skin-border overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-skin-border">
+              <h3 className="font-display text-2xl text-on-surface">Today's capture</h3>
+              <p className="text-sm text-on-surface-variant mt-0.5">
+                {completedAnglesToday.length === 0
+                  ? "Take 3 photos — front, left, and right"
+                  : `${completedAnglesToday.length} of 3 complete — next: ${nextRequiredAngle}`}
               </p>
             </div>
 
-            <SelfieCamera
-              ref={selfieCameraRef}
-              onCapture={handleSelfieCapture}
-            />
+            {/* Angle progress pills */}
+            <div className="px-6 py-3 flex gap-2">
+              {REQUIRED_ANGLES.map(angle => (
+                <div key={angle} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  completedAnglesToday.includes(angle)
+                    ? "bg-secondary/15 text-secondary"
+                    : angle === nextRequiredAngle
+                    ? "bg-bloom/10 text-bloom ring-1 ring-bloom/30"
+                    : "bg-surface-warm text-on-surface-variant"
+                }`}>
+                  {completedAnglesToday.includes(angle) ? "✓ " : ""}{formatAngleLabel(angle)}
+                </div>
+              ))}
+            </div>
 
-            {selfie && nextRequiredAngle && (
-              <div className="mt-6 space-y-3">
-                <button
-                  onClick={handleUpload}
-                  disabled={uploading}
-                  className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-white bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base flex items-center justify-center gap-2"
-                >
-                  <span>{uploading ? "Uploading..." : "✓ Upload Selfie"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRetakeSelfie}
-                  disabled={uploading}
-                  className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-on-surface disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-                >
-                  Retake
-                </button>
-              </div>
-            )}
+            <div className="px-6 pb-6">
+              <SelfieCamera ref={selfieCameraRef} onCapture={handleSelfieCapture} />
 
-            {uploadError && (
-              <div className="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-                {uploadError}
-              </div>
-            )}
+              {selfie && nextRequiredAngle && (
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={handleUpload}
+                    disabled={uploading}
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold bg-bloom hover:bg-bloom-hover text-white shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploading ? "Uploading…" : `Save ${formatAngleLabel(nextRequiredAngle)}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRetakeSelfie}
+                    disabled={uploading}
+                    className="px-5 py-3 rounded-xl text-sm font-medium border-2 border-skin-border bg-surface-warm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary disabled:opacity-50"
+                  >
+                    Retake
+                  </button>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                  <p className="text-sm text-red-700">{uploadError}</p>
+                </div>
+              )}
+            </div>
           </section>
         )}
 
+        {/* ── Selfie progress / complete banner ── */}
         {completedAnglesToday.length > 0 && currentUserId === userId && (
-          <section
-            className={`rounded-2xl p-6 sm:p-8 ${
-              hasTakenDailySelfie
-                ? "bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30"
-                : "bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30"
-            }`}
-          >
-            <div className="text-center mb-6">
-              <h3
-                className={`text-2xl font-bold mb-2 ${
-                  hasTakenDailySelfie ? "text-green-300" : "text-blue-300"
-                }`}
+          <section className={`rounded-2xl border px-6 py-5 ${
+            hasTakenDailySelfie
+              ? "bg-secondary/8 border-secondary/25"
+              : "bg-primary/5 border-primary/20"
+          }`}>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className={`font-semibold text-sm ${hasTakenDailySelfie ? "text-secondary" : "text-primary"}`}>
+                  {hasTakenDailySelfie ? "All 3 photos captured ✓" : `${completedAnglesToday.length}/3 photos saved`}
+                </p>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {hasTakenDailySelfie
+                    ? "Come back tomorrow to continue."
+                    : `Still need: ${REQUIRED_ANGLES.filter(a => !completedAnglesToday.includes(a)).map(formatAngleLabel).join(", ")}`}
+                </p>
+              </div>
+              <button
+                onClick={handleRestartSelfies}
+                disabled={restarting}
+                className="px-4 py-2 text-xs font-medium rounded-lg border-2 border-skin-border bg-surface-warm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary disabled:opacity-50 whitespace-nowrap"
               >
-                {hasTakenDailySelfie
-                  ? "Daily Selfie Complete"
-                  : `Selfies in Progress (${completedAnglesToday.length}/3)`}
-              </h3>
-              <p className="text-on-surface-variant">
-                {hasTakenDailySelfie
-                  ? "Come back tomorrow to continue your progress tracking."
-                  : `You've taken the ${completedAnglesToday.map((a) => (a === "front" ? "front" : a === "left" ? "left side" : "right side")).join(", ")} selfie${completedAnglesToday.length > 1 ? "s" : ""}.`}
-              </p>
+                {restarting ? "Restarting…" : "Restart"}
+              </button>
             </div>
-            <button
-              onClick={handleRestartSelfies}
-              disabled={restarting}
-              className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base"
-            >
-              {restarting ? "Restarting..." : "Restart Today's Selfies"}
-            </button>
           </section>
         )}
 
+        {/* ── Habit tracker ── */}
         {currentUserId === userId && (
-          <section className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-6 sm:p-8 hover:border-purple-500/50 transition-colors space-y-6">
-            <div>
-              <h3 className="text-2xl font-bold text-on-surface mb-2">
-                Habit Tracker
-              </h3>
-              <p className="text-on-surface-variant text-sm">
-                Check your daily routine: cleanse, hydrate, and SPF.
-              </p>
+          <section className="bg-surface rounded-2xl border border-skin-border">
+            <div className="px-6 pt-6 pb-4 border-b border-skin-border">
+              <h3 className="font-display text-2xl text-on-surface">Daily rituals</h3>
+              <p className="text-sm text-on-surface-variant mt-0.5">Track your skincare routine</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {DAILY_HABITS.map((habit) => {
+            <div className="px-6 pt-5 pb-2 grid grid-cols-3 gap-3">
+              {DAILY_HABITS.map(habit => {
                 const lockState = habitLockState[habit.key];
-                const isLocked = lockState === "locked";
+                const isLocked  = lockState === "locked";
                 const isChecked = lockState === "checked" || isLocked;
 
                 return (
                   <div
                     key={habit.key}
-                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors ${
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all ${
                       isLocked
-                        ? "border-green-500/40 bg-green-500/10"
+                        ? "bg-secondary/8 border-secondary/30"
                         : isChecked
-                          ? "border-amber-500/40 bg-amber-500/10"
-                          : "border-slate-700 bg-slate-800/40 hover:border-slate-500"
+                        ? "bg-bloom/8 border-bloom/25"
+                        : "bg-surface-warm border-skin-border hover:border-on-surface-variant/30"
                     }`}
                   >
-                    <label
-                      className={`flex items-center justify-between ${isLocked ? "cursor-default" : "cursor-pointer"}`}
-                    >
-                      <span className="text-on-surface font-medium flex items-center gap-2">
-                        {habit.label}
-                        {isLocked && (
-                          <span className="text-xs text-green-400" aria-label="Locked">
-                            🔒
-                          </span>
+                    <span className="text-2xl">{habit.emoji}</span>
+                    <span className={`text-xs font-semibold ${isLocked ? "text-secondary" : isChecked ? "text-bloom" : "text-on-surface-variant"}`}>
+                      {habit.label}
+                    </span>
+
+                    {isLocked ? (
+                      <span className="text-[10px] text-secondary font-medium">Done ✓</span>
+                    ) : (
+                      <label className="flex flex-col items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleHabitToggle(habit.key)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        {lockState === "checked" && (
+                          <button
+                            onClick={() => handleLockIn(habit.key)}
+                            className="text-xs font-semibold text-white bg-bloom hover:bg-bloom-hover px-3 py-1.5 rounded-lg shadow-sm hover:shadow"
+                          >
+                            Lock in
+                          </button>
                         )}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        disabled={isLocked}
-                        onChange={() => handleHabitToggle(habit.key)}
-                        className="h-4 w-4 accent-green-500 disabled:opacity-50"
-                      />
-                    </label>
-                    {lockState === "checked" && (
-                      <button
-                        onClick={() => handleLockIn(habit.key)}
-                        className="w-full rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold py-1.5 transition-colors"
-                      >
-                        Lock In
-                      </button>
+                      </label>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-                <p className="text-on-surface-variant text-sm mb-1">Streak</p>
-                <p className="text-2xl font-bold text-purple-300">
-                  {habitStreak} days
-                </p>
+            {/* Streak stats */}
+            <div className="px-6 py-4 grid grid-cols-2 gap-3 border-t border-skin-border mt-4">
+              <div className="bg-surface-warm rounded-xl px-4 py-3">
+                <p className="text-[11px] text-on-surface-variant uppercase tracking-widest mb-1">Streak</p>
+                <p className="font-display text-3xl text-secondary">{habitStreak} <span className="text-base font-sans font-normal text-on-surface-variant">days</span></p>
               </div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-                <p className="text-on-surface-variant text-sm mb-1">
-                  Completed Days
-                </p>
-                <p className="text-2xl font-bold text-blue-300">
-                  {completedHabitDays}
-                </p>
+              <div className="bg-surface-warm rounded-xl px-4 py-3">
+                <p className="text-[11px] text-on-surface-variant uppercase tracking-widest mb-1">Completed</p>
+                <p className="font-display text-3xl text-primary">{completedHabitDays} <span className="text-base font-sans font-normal text-on-surface-variant">days</span></p>
               </div>
             </div>
 
-            <div>
-              <h4 className="text-lg font-semibold text-on-surface mb-4">
-                Badges
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {badges.map((badge) => (
+            {/* Badges */}
+            <div className="px-6 pb-6">
+              <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-3 mt-1">Achievements</p>
+              <div className="grid grid-cols-2 gap-3">
+                {badges.map(badge => (
                   <div
                     key={badge.title}
-                    className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-300 ${
+                    className={`rounded-xl border px-4 py-3 transition-all ${
                       badge.unlocked
-                        ? "bg-gradient-to-r from-emerald-500/20 to-blue-500/10 border-emerald-400/50 hover:border-emerald-400 shadow-lg shadow-emerald-500/10"
-                        : "bg-slate-800/50 border-slate-600/50 opacity-60"
+                        ? "bg-bloom/8 border-bloom/25"
+                        : "bg-surface-warm border-skin-border opacity-55"
                     }`}
                   >
-                    {/* Badge Circle */}
-                    <div
-                      className={`flex-shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold border-4 relative ${
-                        badge.unlocked
-                          ? "bg-gradient-to-br from-emerald-400 to-blue-400 border-emerald-300 shadow-lg shadow-emerald-400/50"
-                          : "bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 shadow-lg shadow-slate-900/50"
-                      }`}
-                    >
-                      {badge.unlocked ? (
-                        <span>🏆</span>
-                      ) : (
-                        <span className="text-slate-500">🔒</span>
-                      )}
-                      {/* Shine effect for unlocked badges */}
-                      {badge.unlocked && (
-                        <div className="absolute top-1 right-1 w-3 h-3 bg-white rounded-full opacity-60"></div>
-                      )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">{badge.unlocked ? "🏆" : "🔒"}</span>
+                      <p className="text-xs font-semibold text-on-surface">{badge.title}</p>
                     </div>
-
-                    {/* Badge Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-on-surface font-bold text-sm">
-                        {badge.title}
-                      </p>
-                      <p className="text-on-surface-variant text-xs leading-relaxed">
-                        {badge.description}
-                      </p>
-                      <p
-                        className={`text-xs font-semibold mt-2 ${
-                          badge.unlocked ? "text-emerald-300" : "text-slate-400"
-                        }`}
-                      >
-                        {badge.unlocked ? "✓ Unlocked" : "🔒 Locked"}
-                      </p>
-                    </div>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed">{badge.description}</p>
                   </div>
                 ))}
               </div>
@@ -868,95 +572,61 @@ const ProfilePage = () => {
           </section>
         )}
 
-        <section className="space-y-6">
+        {/* ── Gallery preview ── */}
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-bold text-on-surface mb-2">
-                Your Progress Gallery
-              </h2>
-              <p className="text-on-surface-variant">
-                Each day shows front, left, and right photos together.
-              </p>
-            </div>
+            <h3 className="font-display text-2xl text-on-surface">Recent photos</h3>
             {totalSets > 0 && (
               <button
                 onClick={() => navigate(`/users/${userId}/gallery`)}
-                className="py-2 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-sm sm:text-base w-fit"
+                className="text-sm font-medium px-4 py-2 rounded-lg border-2 border-skin-border bg-surface-warm text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary flex items-center gap-1"
               >
-                View All →
+                View all <span aria-hidden>→</span>
               </button>
             )}
           </div>
 
           {!latestSelfieDay ? (
-            <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-12 text-center hover:border-purple-500/50 transition-colors">
-              <p className="text-on-surface-variant text-lg">
-                No daily sets yet
-              </p>
-              <p className="text-on-surface-variant text-sm mt-2">
-                Start by taking today&apos;s front photo above.
-              </p>
+            <div className="bg-surface rounded-2xl border border-dashed border-skin-border p-10 text-center">
+              <p className="text-on-surface-variant text-sm">No photos yet — start by taking today's set above.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-on-surface font-semibold">
-                    {new Date(latestSelfieDay.date + "T00:00:00Z").toLocaleDateString(
-                      "default",
-                      {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        timeZone: "UTC",
-                      },
-                    )}
-                  </p>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full border ${
-                      latestSelfieDay.isComplete
-                        ? "bg-green-500/10 border-green-500/30 text-green-300"
-                        : "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
-                    }`}
-                  >
-                    {latestSelfieDay.isComplete ? "Complete" : "Incomplete"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {REQUIRED_ANGLES.map((angle) => {
-                    const photo = getPhotoForAngle(
-                      latestSelfieDay.photos,
-                      angle,
-                    );
-                    return photo ? (
-                      <div
-                        key={`${latestSelfieDay.date}-${angle}`}
-                        className="rounded-xl overflow-hidden border border-slate-700"
-                      >
-                        <img
-                          src={photo.url}
-                          alt={`${formatAngleLabel(angle)} selfie`}
-                          className="w-full aspect-[4/3] object-cover"
-                        />
-                        <p className="text-center text-xs py-2 text-on-surface-variant bg-slate-900/60">
-                          {formatAngleLabel(angle)}
-                        </p>
-                      </div>
-                    ) : (
-                      <div
-                        key={`${latestSelfieDay.date}-${angle}`}
-                        className="rounded-xl border border-dashed border-slate-600 aspect-[4/3] flex items-center justify-center text-on-surface-variant text-xs"
-                      >
-                        {formatAngleLabel(angle)} missing
-                      </div>
-                    );
+            <div className="bg-surface rounded-2xl border border-skin-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-skin-border">
+                <p className="text-sm font-medium text-on-surface">
+                  {new Date(latestSelfieDay.date + "T00:00:00Z").toLocaleDateString("en-US", {
+                    year: "numeric", month: "short", day: "numeric", timeZone: "UTC",
                   })}
-                </div>
+                </p>
+                <span className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full border ${
+                  latestSelfieDay.isComplete
+                    ? "bg-secondary/10 border-secondary/30 text-secondary"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+                }`}>
+                  {latestSelfieDay.isComplete ? "Complete" : "Incomplete"}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-px bg-skin-border">
+                {REQUIRED_ANGLES.map(angle => {
+                  const photo = getPhotoForAngle(latestSelfieDay.photos, angle);
+                  return photo ? (
+                    <div key={`${latestSelfieDay.date}-${angle}`} className="relative">
+                      <img src={photo.url} alt={`${formatAngleLabel(angle)} selfie`} className="w-full aspect-[4/3] object-cover bg-surface-warm" />
+                      <p className="absolute bottom-0 inset-x-0 text-center text-[10px] py-1 text-white bg-black/30">
+                        {formatAngleLabel(angle)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div key={`${latestSelfieDay.date}-${angle}`} className="aspect-[4/3] flex items-center justify-center bg-surface-warm text-[11px] text-on-surface-variant">
+                      {formatAngleLabel(angle)} missing
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
         </section>
+
       </main>
     </div>
   );

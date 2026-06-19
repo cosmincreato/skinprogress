@@ -1,20 +1,93 @@
 @import "tailwindcss";
 
+/* Tailwind v4 native color token — generates bg-bloom, text-bloom, border-bloom etc. */
+@theme {
+  --color-bloom: #D4607A;
+  --color-bloom-hover: #BC4860;
+}
+
 @layer base {
   :root {
-    --color-primary: 168 85 247;
-    --color-primary-hover: 147 51 234;
-    --color-secondary: 59 130 246;
-    --color-secondary-hover: 37 99 235;
-    --color-background: 15 23 42;
-    --color-surface: 30 41 59;
-    --color-on-surface: 255 255 255;
-    --color-on-surface-variant: 206 215 230;
-    --color-on-primary: 255 255 255;
+    /* Warm organic palette */
+    --color-background:          250 247 244;   /* #FAF7F4 warm cream */
+    --color-surface:             255 255 255;   /* #FFFFFF */
+    --color-surface-warm:        253 248 243;   /* #FDF8F3 */
+    --color-primary:             193 127 96;    /* #C17F60 terracotta */
+    --color-primary-hover:       163 101 69;    /* #A36545 */
+    --color-secondary:           139 158 136;   /* #8B9E88 sage */
+    --color-secondary-hover:     105 130 101;   /* #698665 */
+    --color-on-surface:          61  43  32;    /* #3D2B20 warm brown */
+    --color-on-surface-variant:  140 123 110;   /* #8C7B6E */
+    --color-on-primary:          255 255 255;
+    --color-border:              232 221 212;   /* #E8DDD4 */
+    --color-accent-blush:        232 168 156;   /* #E8A89C */
+    --color-accent-sage:         181 201 178;   /* #B5C9B2 */
   }
 
   body {
-    @apply bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900;
+    background-color: rgb(var(--color-background));
     color: rgb(var(--color-on-surface));
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--color-border)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--color-on-surface-variant)); }
+
+  /* Dark mode — warm espresso palette */
+  :root.dark {
+    color-scheme: dark;
+    --color-background:          28  21  14;   /* #1C150E warm espresso */
+    --color-surface:             40  29  20;   /* #281D14 dark walnut */
+    --color-surface-warm:        34  24  16;   /* #221810 */
+    --color-primary:             193 127 96;   /* #C17F60 terracotta — unchanged */
+    --color-primary-hover:       213 147 116;  /* #D59374 lighter on dark */
+    --color-secondary:           139 158 136;  /* #8B9E88 sage — unchanged */
+    --color-secondary-hover:     159 178 156;  /* #9FB29C */
+    --color-on-surface:          245 237 228;  /* #F5EDE4 warm cream */
+    --color-on-surface-variant:  160 128 112;  /* #A08070 */
+    --color-on-primary:          255 255 255;
+    --color-border:              61  43  32;   /* #3D2B20 deep warm border */
+    --color-accent-blush:        200 128 112;  /* #C88070 */
+    --color-accent-sage:         120 140 117;  /* #788C75 */
+
+    /* Bloom overrides for dark mode */
+    --color-bloom: #E87894;
+    --color-bloom-hover: #D4607A;
+  }
+
+  /* Smooth theme transition */
+  html.theme-transitioning,
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition:
+      background-color 180ms ease,
+      border-color     180ms ease,
+      color            180ms ease !important;
+  }
+
+  /* Date input warm styling */
+  input[type="date"] { color-scheme: light; }
+  :root.dark input[type="date"] { color-scheme: dark; }
+
+  /* Native select popup options — override inherited cream text with explicit dark value */
+  :root.dark select option {
+    color: #3D2B20 !important;
+    background-color: #FAF7F4 !important;
+  }
+
+  /* Button baseline */
+  button {
+    cursor: pointer;
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { cursor: not-allowed; }
 }

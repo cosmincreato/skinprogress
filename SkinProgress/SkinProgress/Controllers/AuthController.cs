@@ -289,12 +289,8 @@ public class AuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Still return 200 OK to not reveal email existence
             _logger.LogWarning($"Password reset request: {ex.Message}");
-            return Ok(new
-            {
-                message = $"If an account exists with {request.Email}, you will receive a password reset email."
-            });
+            return BadRequest(new { message = "Email does not exist." });
         }
         catch (Exception ex)
         {

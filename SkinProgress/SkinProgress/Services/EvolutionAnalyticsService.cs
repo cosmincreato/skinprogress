@@ -60,6 +60,12 @@ namespace SkinProgress.Services
                 throw new ArgumentException($"StartDate ({startDate}) cannot be later than EndDate ({endDate})", nameof(startDate));
             }
 
+            // Npgsql requires DateTimeKind.Utc for 'timestamp with time zone' columns.
+            // The ASP.NET model binder produces Kind=Unspecified for bare date strings;
+            // SpecifyKind retags the value as UTC without shifting it.
+            startDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc);
+            endDate   = DateTime.SpecifyKind(endDate,   DateTimeKind.Utc);
+
             if (endDate > DateTime.UtcNow)
             {
                 throw new ArgumentException($"EndDate ({endDate}) cannot be in the future", nameof(endDate));

@@ -1,69 +1,30 @@
 import React, { useMemo } from "react";
 
-/**
- * PeriodComparison Component
- *
- * SOLID Principles:
- * - Single Responsibility: Compares metrics between two time periods
- * - Dependency Inversion: Receives data as props from parent
- * - Interface Segregation: Minimal props interface
- * - Open/Closed: Extensible for additional metric comparisons
- *
- * Features:
- * - Compare average severity between two time periods
- * - Show improvement/worsening percentages
- * - Display statistical significance indicators
- * - Side-by-side metric breakdown
- *
- * User Story 3: Compare progress across custom time periods
- */
-
 export interface MetricComparison {
   metric: string;
   period1Avg: number;
   period2Avg: number;
-  improvement: number; // Positive = improvement, negative = worsening
+  improvement: number;
   improvementPercent: number;
-  isSignificant: boolean; // Based on threshold
+  isSignificant: boolean;
 }
 
 export interface PeriodComparisonProps {
-  period1Data: Array<{
-    date: string;
-    overallSeverity: number;
-    [key: string]: any;
-  }>;
-  period2Data: Array<{
-    date: string;
-    overallSeverity: number;
-    [key: string]: any;
-  }>;
-  period1Name: string; // e.g., "January 1-15"
-  period2Name: string; // e.g., "January 16-31"
+  period1Data: Array<{ date: string; overallSeverity: number; [key: string]: any }>;
+  period2Data: Array<{ date: string; overallSeverity: number; [key: string]: any }>;
+  period1Name: string;
+  period2Name: string;
   isLoading?: boolean;
   error?: string | null;
 }
 
-/**
- * Calculate average of a metric across data points
- */
 const calculateAverage = (data: any[], metricKey: string): number => {
   if (data.length === 0) return 0;
-  const sum = data.reduce((acc, item) => acc + (item[metricKey] || 0), 0);
-  return sum / data.length;
+  return data.reduce((acc, item) => acc + (item[metricKey] || 0), 0) / data.length;
 };
 
-/**
- * Determine if improvement is statistically significant
- * Uses simple threshold: > 0.5 point change on 10-point scale
- */
-const isSignificantChange = (change: number): boolean => {
-  return Math.abs(change) > 0.5;
-};
+const isSignificantChange = (change: number): boolean => Math.abs(change) > 0.5;
 
-/**
- * PeriodComparison Component
- */
 export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
   period1Data,
   period2Data,
@@ -72,17 +33,14 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
   isLoading = false,
   error = null,
 }) => {
-  // Calculate metric comparisons
   const comparisons = useMemo(() => {
-    const metrics = ["overallSeverity", "acne", "inflammation", "redness"];
-
+    const metrics = ["overallSeverity", "acne", "redness", "under_eye_bags"];
     return metrics
-      .map((metric) => {
+      .map(metric => {
         const avg1 = calculateAverage(period1Data, metric);
         const avg2 = calculateAverage(period2Data, metric);
-        const change = avg1 - avg2; // Positive = improvement (lower severity)
+        const change = avg1 - avg2;
         const percent = avg1 !== 0 ? ((change / avg1) * 100).toFixed(1) : "0";
-
         return {
           metric,
           period1Avg: avg1,
@@ -92,57 +50,37 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
           isSignificant: isSignificantChange(change),
         };
       })
-      .filter((c) => c.period1Avg > 0 || c.period2Avg > 0); // Filter out empty metrics
+      .filter(c => c.period1Avg > 0 || c.period2Avg > 0);
   }, [period1Data, period2Data]);
 
-  // Format metric display name
-  const formatMetricName = (metric: string): string => {
-    const names: { [key: string]: string } = {
-      overallSeverity: "Overall Severity",
-      redness: "Redness",
-      texture: "Texture",
-      oiliness: "Oiliness",
-      driness: "Dryness",
-    };
-    return names[metric] || metric;
-  };
+  const formatMetricName = (metric: string): string => ({
+    overallSeverity: "Overall Severity",
+    redness: "Redness",
+    acne: "Acne",
+    under_eye_bags: "Under Eye Bags",
+    texture: "Texture",
+    oiliness: "Oiliness",
+    driness: "Dryness",
+  }[metric] || metric);
 
-  // Get metric icon
-  const getMetricIcon = (metric: string): string => {
-    const icons: { [key: string]: string } = {
-      overallSeverity: "📊",
-      redness: "🔴",
-      texture: "📈",
-      oiliness: "💧",
-      driness: "🏜️",
-    };
-    return icons[metric] || "📌";
-  };
-
-  // Calculate overall improvement
   const overallImprovement = useMemo(() => {
-    const overallSevComp = comparisons.find(
-      (c) => c.metric === "overallSeverity",
-    );
-    return overallSevComp ? overallSevComp.improvement : 0;
+    const comp = comparisons.find(c => c.metric === "overallSeverity");
+    return comp ? comp.improvement : 0;
   }, [comparisons]);
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-700 text-sm">{error}</p>
+      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+        <p className="text-red-400 text-sm">{error}</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-24 bg-slate-100 rounded-lg animate-pulse"
-          ></div>
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-20 bg-surface-warm rounded-xl animate-pulse" />
         ))}
       </div>
     );
@@ -150,164 +88,102 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
 
   if (period1Data.length === 0 || period2Data.length === 0) {
     return (
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
-        <p className="text-slate-600">
-          No data available for one or both periods.
-        </p>
-        <p className="text-slate-500 text-sm mt-2">
-          Select two different date ranges to compare your skin progress.
-        </p>
+      <div className="bg-surface-warm border border-skin-border rounded-xl p-8 text-center">
+        <p className="text-on-surface-variant text-sm">No data available for one or both periods.</p>
+        <p className="text-on-surface-variant/60 text-xs mt-2">Select two different date ranges to compare your skin progress.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Overall Summary Card */}
-      <div
-        className={`rounded-lg shadow-sm border p-6 ${
-          overallImprovement > 0
-            ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200"
-            : overallImprovement < 0
-              ? "bg-gradient-to-br from-orange-50 to-red-50 border-orange-200"
-              : "bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200"
-        }`}
-      >
+    <div className="space-y-5">
+      {/* Overall summary */}
+      <div className={`bg-surface rounded-2xl border p-5 ${
+        overallImprovement > 0 ? "border-secondary/40" : overallImprovement < 0 ? "border-bloom/40" : "border-skin-border"
+      }`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-              Overall Progress
-            </p>
-            <div className="mt-2 flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-slate-900">
-                {Math.abs(overallImprovement).toFixed(2)}
-              </p>
-              <p className="text-lg font-semibold text-slate-600">
-                point change
-              </p>
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Overall Progress</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-on-surface">{Math.abs(overallImprovement).toFixed(2)}</p>
+              <p className="text-sm text-on-surface-variant">point change</p>
             </div>
-            {overallImprovement > 0 && (
-              <p className="text-sm text-green-700 font-medium mt-2">
-                ✨ Your skin is improving!
-              </p>
-            )}
-            {overallImprovement < 0 && (
-              <p className="text-sm text-orange-700 font-medium mt-2">
-                ⚠️ Skin condition worsened
-              </p>
-            )}
-            {overallImprovement === 0 && (
-              <p className="text-sm text-slate-700 font-medium mt-2">
-                ➡️ No significant change
-              </p>
-            )}
+            <p className={`text-sm font-medium mt-2 ${
+              overallImprovement > 0 ? "text-secondary" : overallImprovement < 0 ? "text-bloom" : "text-on-surface-variant"
+            }`}>
+              {overallImprovement > 0 ? "✨ Your skin is improving!" : overallImprovement < 0 ? "⚠ Skin condition worsened" : "→ No significant change"}
+            </p>
           </div>
-          <div className="text-5xl">
-            {overallImprovement > 0
-              ? "📈"
-              : overallImprovement < 0
-                ? "📉"
-                : "➡️"}
-          </div>
+          <span className="text-4xl">
+            {overallImprovement > 0 ? "📈" : overallImprovement < 0 ? "📉" : "➡️"}
+          </span>
         </div>
       </div>
 
-      {/* Period Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-            Period 1
-          </p>
-          <p className="text-lg font-bold text-blue-900 mt-2">{period1Name}</p>
-          <p className="text-sm text-blue-700 mt-2">
-            {period1Data.length} data points
-          </p>
+      {/* Period info */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-surface-warm border border-primary/30 rounded-xl p-4">
+          <p className="text-xs font-medium text-primary uppercase tracking-widest mb-1">Period 1</p>
+          <p className="text-sm font-semibold text-on-surface">{period1Name}</p>
+          <p className="text-xs text-on-surface-variant mt-1">{period1Data.length} data points</p>
         </div>
-
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">
-            Period 2
-          </p>
-          <p className="text-lg font-bold text-purple-900 mt-2">
-            {period2Name}
-          </p>
-          <p className="text-sm text-purple-700 mt-2">
-            {period2Data.length} data points
-          </p>
+        <div className="bg-surface-warm border border-secondary/30 rounded-xl p-4">
+          <p className="text-xs font-medium text-secondary uppercase tracking-widest mb-1">Period 2</p>
+          <p className="text-sm font-semibold text-on-surface">{period2Name}</p>
+          <p className="text-xs text-on-surface-variant mt-1">{period2Data.length} data points</p>
         </div>
       </div>
 
-      {/* Metric Comparison Table */}
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Metric Comparison
-          </h3>
+      {/* Metric comparison */}
+      <div className="bg-surface border border-skin-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-skin-border bg-surface-warm">
+          <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest">Metric Comparison</p>
         </div>
-
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                  Metric
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                  {period1Name}
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                  {period2Name}
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                  Change
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                  Trend
-                </th>
+              <tr className="border-b border-skin-border">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Metric</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wide">Period 1</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wide">Period 2</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Change</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {comparisons.map((comp, idx) => (
-                <tr
-                  key={comp.metric}
-                  className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                    <span className="mr-2">{getMetricIcon(comp.metric)}</span>
-                    {formatMetricName(comp.metric)}
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm text-slate-600">
-                    <div className="inline-block bg-blue-100 text-blue-900 px-3 py-1 rounded-full font-semibold">
+            <tbody className="divide-y divide-skin-border">
+              {comparisons.map(comp => (
+                <tr key={comp.metric} className="hover:bg-surface-warm transition-colors">
+                  <td className="px-5 py-3.5 text-sm font-medium text-on-surface">{formatMetricName(comp.metric)}</td>
+                  <td className="px-5 py-3.5 text-center">
+                    <span className="inline-block bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-semibold">
                       {comp.period1Avg.toFixed(2)}
-                    </div>
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-center text-sm text-slate-600">
-                    <div className="inline-block bg-purple-100 text-purple-900 px-3 py-1 rounded-full font-semibold">
+                  <td className="px-5 py-3.5 text-center">
+                    <span className="inline-block bg-secondary/10 text-secondary px-2.5 py-0.5 rounded-full text-xs font-semibold">
                       {comp.period2Avg.toFixed(2)}
-                    </div>
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-center text-sm font-semibold">
+                  <td className="px-5 py-3.5 text-center text-sm font-semibold">
                     {comp.improvement > 0 ? (
-                      <span className="text-green-700">
-                        −{Math.abs(comp.improvement).toFixed(2)}
-                      </span>
+                      <span className="text-secondary">−{Math.abs(comp.improvement).toFixed(2)}</span>
                     ) : comp.improvement < 0 ? (
-                      <span className="text-red-700">
-                        +{Math.abs(comp.improvement).toFixed(2)}
-                      </span>
+                      <span className="text-bloom">+{Math.abs(comp.improvement).toFixed(2)}</span>
                     ) : (
-                      <span className="text-slate-600">0</span>
+                      <span className="text-on-surface-variant">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-5 py-3.5 text-center">
                     {comp.isSignificant ? (
-                      <div className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                        {comp.improvement > 0 ? "✓ Improving" : "⚠ Worsening"}
-                      </div>
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        comp.improvement > 0 ? "bg-secondary/10 text-secondary" : "bg-bloom/10 text-bloom"
+                      }`}>
+                        {comp.improvement > 0 ? "Improving" : "Worsening"}
+                      </span>
                     ) : (
-                      <div className="inline-block bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span className="inline-block bg-surface-warm text-on-surface-variant px-2.5 py-0.5 rounded-full text-xs font-semibold border border-skin-border">
                         Similar
-                      </div>
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -317,25 +193,11 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
         </div>
       </div>
 
-      {/* Explanation */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm font-medium text-blue-900 mb-2">
-          📌 How to Read This Comparison
-        </p>
-        <ul className="space-y-1 text-sm text-blue-800">
-          <li>
-            <strong>Change:</strong> Negative number means improvement (lower
-            severity), positive means worsening
-          </li>
-          <li>
-            <strong>Trend:</strong> "Improving" appears only when change is
-            significant (&gt; 0.5 points)
-          </li>
-          <li>
-            <strong>Percentages:</strong> Show the relative change compared to
-            Period 1 baseline
-          </li>
-        </ul>
+      {/* Legend */}
+      <div className="bg-surface-warm border border-skin-border rounded-xl p-4 space-y-1">
+        <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">How to read this</p>
+        <p className="text-xs text-on-surface-variant">A <span className="text-secondary font-medium">negative change</span> means improvement — lower severity in Period 2.</p>
+        <p className="text-xs text-on-surface-variant">Status shows as "Improving" or "Worsening" only when change exceeds 0.5 points.</p>
       </div>
     </div>
   );

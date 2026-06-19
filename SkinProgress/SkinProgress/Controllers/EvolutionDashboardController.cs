@@ -76,7 +76,7 @@ namespace SkinProgress.Controllers
                 }
 
                 // Extract user ID from JWT claim (set by AuthController)
-                var userId = User.FindFirst("sub")?.Value;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userId))
                 {
                     _logger.LogError("User ID not found in JWT claim");
@@ -128,7 +128,7 @@ namespace SkinProgress.Controllers
                 }
 
                 // Extract user ID from JWT
-                var userId = User.FindFirst("sub")?.Value;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userId))
                 {
                     return Unauthorized();
@@ -167,7 +167,7 @@ namespace SkinProgress.Controllers
                 _logger.LogError(ex, "Error generating PDF report");
 
                 // Log failed export attempt
-                var userId = User.FindFirst("sub")?.Value;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (!string.IsNullOrEmpty(userId))
                 {
                     await _analyticsService.LogPdfExportAsync(
@@ -204,7 +204,7 @@ namespace SkinProgress.Controllers
                 }
 
                 // Extract user ID from JWT
-                var userId = User.FindFirst("sub")?.Value;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userId))
                 {
                     return Unauthorized();
