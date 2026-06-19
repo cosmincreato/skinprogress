@@ -31,6 +31,7 @@ function gauss2d(
 }
 
 // Gaussian visibility weight — how well a given face angle "sees" this normX position
+// @ts-ignore — used in Task 3 vertex loop rewrite
 function angleWeight(normX: number, center: number, sigma: number): number {
   const d = (normX - center) / sigma;
   return Math.exp(-0.5 * d * d);
