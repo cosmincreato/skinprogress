@@ -346,6 +346,7 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
                 * blob.severity;
               if (w > acneW) acneW = w;
             }
+            acneW = Math.min(1, acneW);
             // Per-angle cheek blobs always contribute alongside front detections
             acneW = Math.min(1, Math.max(
               acneW,
