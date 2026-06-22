@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import html2pdf from "html2pdf.js";
 import { getAuthToken } from "../../services/authService";
 
 /**
@@ -124,10 +125,6 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
     }
   };
 
-  /**
-   * Server-side PDF generation fallback
-   * Calls backend API to generate and return PDF
-   */
   const generateReportServerSide = async () => {
     const token = getAuthToken();
     const response = await fetch("/api/evolution/export-pdf", {
@@ -146,24 +143,27 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
       throw new Error(`Server error: ${response.statusText}`);
     }
 
-    // Download the PDF from response
-    const blob = await response.blob();
+    const html = await response.text();
     const fileName = `skin-progress-${formatDate(dateRangeStart)}-to-${formatDate(dateRangeEnd)}.pdf`;
-    downloadPDF(blob, fileName);
-  };
 
-  /**
-   * Trigger PDF download in browser
-   */
-  const downloadPDF = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // DOMParser reliably separates <style> and body content from a full HTML document.
+    // Passing the raw string via innerHTML strips structural tags unpredictably.
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const styles = Array.from(parsed.querySelectorAll("style"))
+      .map((s) => s.outerHTML)
+      .join("");
+    const fragment = `<div style="font-family:Arial,sans-serif;padding:20px;background:#fff;">${styles}${parsed.body.innerHTML}</div>`;
+
+    await html2pdf()
+      .set({
+        margin: 10,
+        filename: fileName,
+        image: { type: "jpeg", quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      })
+      .from(fragment)
+      .save();
   };
 
   return (

@@ -1,0 +1,20 @@
+C:\Users\diap\Desktop\skinprogress\SkinProgress\SkinProgress\Properties\launchSettings.json
+C:\Users\diap\Desktop\skinprogress\SkinProgress\SkinProgress\appsettings.json
+C:\Users\diap\Desktop\skinprogress\n8n\SkinProgress RAG.json
+C:\Users\diap\Desktop\skinprogress\ui\package.json
+C:\Users\diap\Desktop\skinprogress\ui\public\models\face_landmark_68_model-weights_manifest.json
+C:\Users\diap\Desktop\skinprogress\ui\public\models\tiny_face_detector_model-weights_manifest.json
+C:\Users\diap\Desktop\skinprogress\ui\tsconfig.app.json
+C:\Users\diap\Desktop\skinprogress\ui\tsconfig.json
+C:\Users\diap\Desktop\skinprogress\ui\tsconfig.node.json
+C:\Users\diap\Desktop\skinprogress\CLAUDE.md
+C:\Users\diap\Desktop\skinprogress\DESCRIPTION_LICENSE.md
+C:\Users\diap\Desktop\skinprogress\QDRANT_SETUP.md
+C:\Users\diap\Desktop\skinprogress\README.md
+C:\Users\diap\Desktop\skinprogress\SkinProgress\build_output.txt
+C:\Users\diap\Desktop\skinprogress\ai-service\README.md
+C:\Users\diap\Desktop\skinprogress\ai-service\requirements.txt
+C:\Users\diap\Desktop\skinprogress\docker-compose.yml
+C:\Users\diap\Desktop\skinprogress\docs\superpowers\plans\2026-05-28-face-crop-detection.md
+C:\Users\diap\Desktop\skinprogress\docs\superpowers\plans\2026-05-28-heatmap-condition-tooltips.md
+C:\Users\diap\Desktop\skinprogress\docs\superpowers\plans\2026-05-28-landmark-detection-tuning.md

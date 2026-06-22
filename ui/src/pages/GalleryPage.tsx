@@ -654,7 +654,7 @@ const GalleryPage = () => {
         id: "eye-sleep",
         title: "Consistent 7–9 Hours of Sleep",
         description:
-          "Under-eye bags are strongly linked to sleep deprivation. Consistent sleep timing — even on weekends — has more impact than total hours alone.",
+          "Dark circles are strongly linked to sleep deprivation. Consistent sleep timing — even on weekends — has more impact than total hours alone.",
         when: "lifestyle",
         priority: "urgent",
         metric: "under_eye_bags",
@@ -682,7 +682,7 @@ const GalleryPage = () => {
         id: "eye-elevate",
         title: "Sleep with Head Slightly Elevated",
         description:
-          "Mild under-eye bags noted. An extra pillow helps prevent fluid pooling under the eyes overnight.",
+          "Mild dark circles noted. An extra pillow helps prevent fluid pooling under the eyes overnight.",
         when: "lifestyle",
         priority: "optional",
         metric: "under_eye_bags",
@@ -844,7 +844,7 @@ const GalleryPage = () => {
   const METRIC_LABEL: Record<string, string> = {
     acne: "Acne",
     redness: "Redness",
-    under_eye_bags: "Under Eye",
+    under_eye_bags: "Dark Circles",
     inflammation: "Inflammation",
   };
 
@@ -1304,6 +1304,7 @@ const GalleryPage = () => {
                               scores={analysisByDate[selectedDay.date].overall_scores}
                               frontPhotoUrl={getPhotoForAngle(selectedDay.photos, "front")?.url}
                               detections={analysisByDate[selectedDay.date].per_angle?.front?.detections ?? []}
+                              perAngle={analysisByDate[selectedDay.date].per_angle}
                             />
                           </div>
 

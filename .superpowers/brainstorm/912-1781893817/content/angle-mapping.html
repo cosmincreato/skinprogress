@@ -1,0 +1,65 @@
+<h2>How should the 3 angles map onto the 3D face?</h2>
+<p class="subtitle">Each photo covers a different region. Pick the mapping strategy that feels most accurate.</p>
+
+<div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;margin-bottom:32px">
+
+  <!-- Diagram: face zones -->
+  <div style="background:#131c2e;border:1px solid #2a3a5c;border-radius:12px;padding:20px;min-width:260px;max-width:320px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7aa2d4;margin-bottom:14px">Face coverage per angle</div>
+    <!-- SVG face outline with colored zones -->
+    <svg viewBox="0 0 200 240" style="width:100%;max-width:220px;display:block;margin:0 auto">
+      <!-- head outline -->
+      <ellipse cx="100" cy="110" rx="72" ry="90" fill="#1a2540" stroke="#2a3a5c" stroke-width="1.5"/>
+      <!-- FRONT zone (center) -->
+      <ellipse cx="100" cy="110" rx="38" ry="62" fill="rgba(99,179,237,0.18)" stroke="#63b3ed" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <!-- LEFT zone (viewer's right, person's left cheek) -->
+      <ellipse cx="148" cy="118" rx="30" ry="44" fill="rgba(154,205,100,0.18)" stroke="#9acd64" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <!-- RIGHT zone (viewer's left, person's right cheek) -->
+      <ellipse cx="52" cy="118" rx="30" ry="44" fill="rgba(237,137,54,0.18)" stroke="#ed8936" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <!-- labels -->
+      <text x="100" y="96" text-anchor="middle" font-size="10" fill="#63b3ed" font-family="sans-serif">FRONT</text>
+      <text x="152" y="104" text-anchor="middle" font-size="9" fill="#9acd64" font-family="sans-serif">LEFT</text>
+      <text x="48" y="104" text-anchor="middle" font-size="9" fill="#ed8936" font-family="sans-serif">RIGHT</text>
+      <!-- nose dot -->
+      <circle cx="100" cy="128" r="4" fill="rgba(99,179,237,0.4)" stroke="#63b3ed" stroke-width="1"/>
+      <!-- eye dots -->
+      <ellipse cx="80" cy="98" rx="10" ry="5" fill="rgba(99,179,237,0.2)" stroke="#63b3ed" stroke-width="1"/>
+      <ellipse cx="120" cy="98" rx="10" ry="5" fill="rgba(99,179,237,0.2)" stroke="#63b3ed" stroke-width="1"/>
+    </svg>
+    <div style="margin-top:10px;font-size:11px;color:#7aa2d4;line-height:1.6">
+      <span style="color:#63b3ed">■</span> Front — forehead, nose, chin, under-eyes<br>
+      <span style="color:#9acd64">■</span> Left angle — person's left cheek, jaw<br>
+      <span style="color:#ed8936">■</span> Right angle — person's right cheek, jaw
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:14px">
+    <div class="options" style="flex-direction:column">
+      <div class="option" data-choice="a" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content">
+          <h3>Zone Blending</h3>
+          <p>Split the model into 3 zones (left cheek, center, right cheek) with soft Gaussian falloff between them. Each zone is colored by its angle's detections. Zones overlap at boundaries for a smooth transition.</p>
+          <div style="margin-top:6px;font-size:11px;color:#7aa2d4">Best fit: smooth, realistic. Most work.</div>
+        </div>
+      </div>
+      <div class="option" data-choice="b" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content">
+          <h3>Hard Split + Blend</h3>
+          <p>Divide model at normX ≈ ±0.25: left third driven by left-angle detections, right third by right-angle, center by front-angle. A narrow blend band (~0.1 normX wide) smooths the seam.</p>
+          <div style="margin-top:6px;font-size:11px;color:#7aa2d4">Simpler, accurate zone ownership, minor visible seam risk.</div>
+        </div>
+      </div>
+      <div class="option" data-choice="c" onclick="toggleSelect(this)">
+        <div class="letter">C</div>
+        <div class="content">
+          <h3>Weighted Composite</h3>
+          <p>Each vertex gets a weighted sum from all 3 angles. Weight = how well that angle "sees" the vertex (based on normX and normal direction). All angles contribute everywhere; dominance shifts by position.</p>
+          <div style="margin-top:6px;font-size:11px;color:#7aa2d4">Most physically accurate. Highest quality output.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

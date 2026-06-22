@@ -1,5 +1,6 @@
 import sys
 import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
@@ -15,6 +16,7 @@ def make_solid_image(w=100, h=100):
 def test_returns_none_when_no_face_detected():
     """With a blank image, _detect_face_bbox must return None (not crash)."""
     from app import _detect_face_bbox
+
     result = _detect_face_bbox(make_solid_image())
     assert result is None
 
@@ -33,8 +35,8 @@ def test_mediapipe_result_preferred_over_haar():
     x, y, w, h = result
     assert x == 50
     assert y == 60
-    assert w == 100   # 150 - 50
-    assert h == 140   # 200 - 60
+    assert w == 100  # 150 - 50
+    assert h == 140  # 200 - 60
 
 
 def test_falls_back_to_haar_when_mediapipe_returns_none():
@@ -57,7 +59,9 @@ def test_degenerate_landmarks_fall_back_to_haar():
     with patch("app._face_landmarks_xy", return_value=all_same):
         result = _detect_face_bbox(make_solid_image(w=300, h=300))
 
-    assert result is None  # fw=0, fh=0 < 20 → falls through to Haar → blank image → None
+    assert (
+        result is None
+    )  # fw=0, fh=0 < 20 → falls through to Haar → blank image → None
 
 
 def test_small_bbox_falls_back_to_haar():
@@ -65,7 +69,9 @@ def test_small_bbox_falls_back_to_haar():
     from app import _detect_face_bbox
 
     # Points spanning only 5px × 5px
-    tiny_pts = np.array([[100, 100], [105, 100], [100, 105], [105, 105]], dtype=np.int32)
+    tiny_pts = np.array(
+        [[100, 100], [105, 100], [100, 105], [105, 105]], dtype=np.int32
+    )
 
     with patch("app._face_landmarks_xy", return_value=tiny_pts):
         result = _detect_face_bbox(make_solid_image(w=300, h=300))
@@ -83,5 +89,5 @@ def test_crop_offset_centres_are_within_original_image():
     cx = int((x1 + x2) / 2) + crop_left
     cy = int((y1 + y2) / 2) + crop_top
 
-    assert cx == 110   # 30 + 80
-    assert cy == 135   # 35 + 100
+    assert cx == 110  # 30 + 80
+    assert cy == 135  # 35 + 100

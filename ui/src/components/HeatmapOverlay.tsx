@@ -26,7 +26,7 @@ interface HeatmapOverlayProps {
 const CONDITION_LABELS: Record<DetectionCondition, string> = {
   acne: "Acne",
   redness: "Redness",
-  under_eye_bags: "Under-eye bags",
+  under_eye_bags: "Dark circles",
 };
 
 function severityLabel(s: number): string {
@@ -145,7 +145,7 @@ export function HeatmapOverlay({
 
         {tooltip && (
           <div
-            className="absolute z-50 px-2 py-1 rounded bg-on-surface text-surface text-[11px] pointer-events-none shadow-lg whitespace-nowrap"
+            className="absolute z-50 px-2 py-1 rounded bg-gray-900 text-white border border-white/10 text-[11px] pointer-events-none shadow-lg whitespace-nowrap"
             style={{ left: tooltip.left, top: tooltip.top }}
           >
             {tooltip.text}

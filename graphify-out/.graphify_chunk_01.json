@@ -1,0 +1,1111 @@
+{
+  "nodes": [
+    {
+      "id": "plans_2026_05_28_mediapipe_tasks_api_plan",
+      "label": "MediaPipe Tasks API Migration Plan",
+      "file_type": "document",
+      "source_file": "docs/superpowers/plans/2026-05-28-mediapipe-tasks-api.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-28",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_05_29_face3d_coordinate_coloring_plan",
+      "label": "Face3D Coordinate-Based Coloring Plan",
+      "file_type": "document",
+      "source_file": "docs/superpowers/plans/2026-05-29-face3d-coordinate-based-coloring.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_05_29_habit_lock_in_plan",
+      "label": "Habit Lock-In Implementation Plan",
+      "file_type": "document",
+      "source_file": "docs/superpowers/plans/2026-05-29-habit-lock-in.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_05_29_qdrant_activity_log_plan",
+      "label": "Qdrant Activity Log Implementation Plan",
+      "file_type": "document",
+      "source_file": "docs/superpowers/plans/2026-05-29-qdrant-activity-log.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_face_crop_detection_design",
+      "label": "Face-First YOLO Detection Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-28",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_heatmap_condition_tooltips_design",
+      "label": "Heatmap Condition Tooltips Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-28",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_landmark_detection_tuning_design",
+      "label": "Landmark-Based Detection Tuning Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-28",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_mediapipe_tasks_api_design",
+      "label": "MediaPipe Tasks API Migration Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-28-mediapipe-tasks-api-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-28",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_face3d_coordinate_coloring_design",
+      "label": "Face3D Coordinate-Based Coloring Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_habit_lock_in_design",
+      "label": "Habit Lock-In Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-29-habit-lock-in-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "specs_qdrant_activity_log_design",
+      "label": "Qdrant Activity Log Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-05-29",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "thesis_ai_pipeline_doc",
+      "label": "AI-Powered Skin Condition Analysis Pipeline (Thesis)",
+      "file_type": "paper",
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ui_readme",
+      "label": "Frontend README (React + TypeScript + Vite)",
+      "file_type": "document",
+      "source_file": "ui/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ui_index_html",
+      "label": "Frontend Entry HTML (index.html)",
+      "file_type": "code",
+      "source_file": "ui/index.html",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_03_02_front",
+      "label": "Heatmap Overlay: 2026-03-02 Front View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-front.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-03-02",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_03_02_left",
+      "label": "Heatmap Overlay: 2026-03-02 Left View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-left.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-03-02",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_03_02_right",
+      "label": "Heatmap Overlay: 2026-03-02 Right View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-right.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-03-02",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_04_21_front",
+      "label": "Heatmap Overlay: 2026-04-21 Front View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-front.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-04-21",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_04_21_left",
+      "label": "Heatmap Overlay: 2026-04-21 Left View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-left.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-04-21",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_2026_04_21_right",
+      "label": "Heatmap Overlay: 2026-04-21 Right View",
+      "file_type": "image",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-right.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": "2026-04-21",
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_face_landmarker_tasks_api",
+      "label": "MediaPipe FaceLandmarker Tasks API",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-mediapipe-tasks-api-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "mp.solutions.face_mesh was removed in mediapipe 0.10.35 on Python 3.14, causing all face detection to fall through to center-ellipse fallback. The Tasks API (mp.tasks.vision.FaceLandmarker) replaces it with a model-file-based approach that correctly handles side-profile selfies."
+    },
+    {
+      "id": "concept_face_silhouette_mask",
+      "label": "Face Silhouette Polygon Mask",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Using 36 specific MediaPipe landmark indices that trace the exact face boundary instead of rectangular bbox with percentage expansion, to exclude hair at top edges and provide tighter face region for skin analysis."
+    },
+    {
+      "id": "concept_nostril_exclusion_mask",
+      "label": "Nostril Exclusion Mask",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Dark circular nostril openings match the acne color profile (dark, slightly reddish), causing false positives. Subtracting a nostril polygon (8 landmark indices) from the face silhouette eliminates this source of error."
+    },
+    {
+      "id": "concept_yolo_face_crop",
+      "label": "YOLO Face-Crop-First Detection",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "YOLO running on the full selfie image detects acne-like spots on hands, hair, and background. Cropping to face region first means YOLO physically cannot detect anything outside the face crop."
+    },
+    {
+      "id": "concept_composite_heatmap",
+      "label": "Per-Condition Composite Heatmap",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Single green-yellow-red gradient heatmap gives no information about which condition each region represents. Per-condition colors (acne=red, redness=orange, under-eye bags=purple) plus JSON detection metadata allow frontend to render tooltips and drive 3D model vertex coloring."
+    },
+    {
+      "id": "concept_detection_type",
+      "label": "Detection Type (spot/zone)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_heatmap_overlay_component",
+      "label": "HeatmapOverlay React Component",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_face3d_coordinate_coloring",
+      "label": "Face3D Coordinate-Based Vertex Coloring",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "scoreToHeat() zone-based coloring produces unnatural yellow/brown patches unrelated to actual skin tone. Replacing with detection-based coordinate hit-testing against AI output, using median skin tone as base and clinically meaningful condition colors, produces a more accurate diagnostic visualization."
+    },
+    {
+      "id": "concept_median_skin_color",
+      "label": "Median Skin Color Extraction",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_habit_lock_in",
+      "label": "Habit Lock-In UX Pattern",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-habit-lock-in-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Direct checkbox-to-DB write with no confirmation step makes it easy to accidentally log a habit. The Lock In two-step (check → confirm) makes the action deliberate and irreversible, matching the backend's already-irreversible behavior."
+    },
+    {
+      "id": "concept_lock_state_type",
+      "label": "LockState Type (unchecked/checked/locked)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-habit-lock-in-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_qdrant_activity_log",
+      "label": "Qdrant Activity Log Collection",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Bloom chatbot needs to accurately retrieve a user's historical skin data. A dedicated 1024-dim bge-m3 embedded collection (skinprogress_activity_log) separate from the 8-dim skinprogress_analyses allows semantic search over natural language event text while preserving exact numeric metadata for filtering."
+    },
+    {
+      "id": "concept_activity_event_model",
+      "label": "ActivityEvent Discriminated Union (4 subtypes)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_ollama_embedding_service",
+      "label": "OllamaEmbeddingService (bge-m3)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_bloom_rag_retrieval",
+      "label": "Bloom Chatbot RAG Retrieval Flow",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_acne_detection_pipeline",
+      "label": "Acne Detection Pipeline (YOLO + Color Fallback)",
+      "file_type": "concept",
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_redness_detection_pipeline",
+      "label": "Redness Detection Pipeline (CIELAB a* channel)",
+      "file_type": "concept",
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_under_eye_detection_pipeline",
+      "label": "Under-Eye Bag Detection Pipeline (landmark geometry)",
+      "file_type": "concept",
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_skin_tone_masking_ycrcb",
+      "label": "Skin Tone Masking (YCrCb thresholds)",
+      "file_type": "concept",
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_heatmap_false_positives_problem",
+      "label": "Heatmap False Positives (hair/hands/nostrils)",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "heatmap_session_user",
+      "label": "Heatmap Session (User 1abf1576)",
+      "file_type": "concept",
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-front.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "plans_2026_05_28_mediapipe_tasks_api_plan",
+      "target": "specs_mediapipe_tasks_api_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-28-mediapipe-tasks-api.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_28_mediapipe_tasks_api_plan",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-28-mediapipe-tasks-api.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_face3d_coordinate_coloring_plan",
+      "target": "specs_face3d_coordinate_coloring_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-face3d-coordinate-based-coloring.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_face3d_coordinate_coloring_plan",
+      "target": "concept_face3d_coordinate_coloring",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-face3d-coordinate-based-coloring.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_habit_lock_in_plan",
+      "target": "specs_habit_lock_in_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-habit-lock-in.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_habit_lock_in_plan",
+      "target": "concept_habit_lock_in",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-habit-lock-in.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_qdrant_activity_log_plan",
+      "target": "specs_qdrant_activity_log_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-qdrant-activity-log.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_qdrant_activity_log_plan",
+      "target": "concept_qdrant_activity_log",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-qdrant-activity-log.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_qdrant_activity_log_plan",
+      "target": "concept_activity_event_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-qdrant-activity-log.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_05_29_qdrant_activity_log_plan",
+      "target": "concept_ollama_embedding_service",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-05-29-qdrant-activity-log.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_mediapipe_tasks_api_design",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-mediapipe-tasks-api-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_landmark_detection_tuning_design",
+      "target": "concept_face_silhouette_mask",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_landmark_detection_tuning_design",
+      "target": "concept_nostril_exclusion_mask",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_landmark_detection_tuning_design",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face_crop_detection_design",
+      "target": "concept_yolo_face_crop",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face_crop_detection_design",
+      "target": "concept_heatmap_false_positives_problem",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face_crop_detection_design",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_heatmap_condition_tooltips_design",
+      "target": "concept_composite_heatmap",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_heatmap_condition_tooltips_design",
+      "target": "concept_heatmap_overlay_component",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_heatmap_condition_tooltips_design",
+      "target": "concept_detection_type",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face3d_coordinate_coloring_design",
+      "target": "concept_face3d_coordinate_coloring",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face3d_coordinate_coloring_design",
+      "target": "concept_median_skin_color",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face3d_coordinate_coloring_design",
+      "target": "specs_heatmap_condition_tooltips_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": "Section 4 cites 2026-05-28-heatmap-condition-tooltips-design.md for condition colors",
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face3d_coordinate_coloring_design",
+      "target": "concept_heatmap_overlay_component",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": "Imports Detection type from HeatmapOverlay.tsx",
+      "weight": 1.0
+    },
+    {
+      "source": "specs_face3d_coordinate_coloring_design",
+      "target": "concept_detection_type",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_habit_lock_in_design",
+      "target": "concept_habit_lock_in",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-habit-lock-in-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_habit_lock_in_design",
+      "target": "concept_lock_state_type",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-habit-lock-in-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_qdrant_activity_log_design",
+      "target": "concept_qdrant_activity_log",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_qdrant_activity_log_design",
+      "target": "concept_activity_event_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_qdrant_activity_log_design",
+      "target": "concept_ollama_embedding_service",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "specs_qdrant_activity_log_design",
+      "target": "concept_bloom_rag_retrieval",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_acne_detection_pipeline",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_redness_detection_pipeline",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_under_eye_detection_pipeline",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_skin_tone_masking_ycrcb",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": "Face region detection section describes FaceLandmarker Tasks API with 478 landmarks",
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_face_silhouette_mask",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": "36 outermost landmark indices polygon silhouette mask",
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_nostril_exclusion_mask",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": "Convex hull of 23 nostril landmark indices subtracted from silhouette",
+      "weight": 1.0
+    },
+    {
+      "source": "thesis_ai_pipeline_doc",
+      "target": "concept_composite_heatmap",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": "Overlay Rendering and Detection Metadata section",
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_03_02_front",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-front.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_03_02_left",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-left.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_03_02_right",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-right.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_04_21_front",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-front.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_04_21_left",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-left.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_04_21_right",
+      "target": "heatmap_session_user",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-right.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_03_02_left",
+      "target": "concept_heatmap_false_positives_problem",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-03-02-left.png",
+      "source_location": "Heatmap overlay visibly extends into hair region on left profile selfie",
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_04_21_right",
+      "target": "concept_heatmap_false_positives_problem",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-right.png",
+      "source_location": "Heatmap overlay covers top of head/hair on right profile selfie with large red blobs",
+      "weight": 1.0
+    },
+    {
+      "source": "heatmap_2026_04_21_front",
+      "target": "concept_heatmap_false_positives_problem",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "SkinProgress/SkinProgress/wwwroot/heatmaps/1abf1576-6b1e-4d3c-b2cc-5ed0ea403569/2026-04-21-front.png",
+      "source_location": "Front view heatmap shows overlay extending beyond face to neck/chest area",
+      "weight": 1.0
+    },
+    {
+      "source": "concept_yolo_face_crop",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md",
+      "source_location": "Uses _face_landmarks_xy which is provided by FaceLandmarker",
+      "weight": 1.0
+    },
+    {
+      "source": "concept_face_silhouette_mask",
+      "target": "concept_face_landmarker_tasks_api",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/superpowers/specs/2026-05-28-landmark-detection-tuning-design.md",
+      "source_location": "Derived from pts array returned by _face_landmarks_xy",
+      "weight": 1.0
+    },
+    {
+      "source": "concept_composite_heatmap",
+      "target": "concept_detection_type",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_face3d_coordinate_coloring",
+      "target": "concept_composite_heatmap",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": "Uses detections[] from HeatmapOverlay for vertex coloring",
+      "weight": 1.0
+    },
+    {
+      "source": "concept_face3d_coordinate_coloring",
+      "target": "concept_median_skin_color",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-face3d-coordinate-based-coloring-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_qdrant_activity_log",
+      "target": "concept_ollama_embedding_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_qdrant_activity_log",
+      "target": "concept_bloom_rag_retrieval",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_activity_event_model",
+      "target": "concept_qdrant_activity_log",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_acne_detection_pipeline",
+      "target": "concept_yolo_face_crop",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_skin_tone_masking_ycrcb",
+      "target": "concept_face_silhouette_mask",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "thesis_ai_pipeline.txt",
+      "source_location": "Both are preprocessing masks applied before condition analysis",
+      "weight": 1.0
+    },
+    {
+      "source": "concept_heatmap_overlay_component",
+      "target": "concept_composite_heatmap",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md",
+      "source_location": "HeatmapOverlay renders the composite heatmap with interaction zones",
+      "weight": 1.0
+    },
+    {
+      "source": "ui_index_html",
+      "target": "ui_readme",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "ui/index.html",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "face_detection_improvement_cluster",
+      "label": "Face Detection Accuracy Improvement (Tasks API + Silhouette + Face Crop)",
+      "nodes": [
+        "concept_face_landmarker_tasks_api",
+        "concept_face_silhouette_mask",
+        "concept_yolo_face_crop",
+        "concept_nostril_exclusion_mask"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/superpowers/specs/2026-05-28-face-crop-detection-design.md"
+    },
+    {
+      "id": "skin_condition_visualization_pipeline",
+      "label": "Skin Condition Visualization Pipeline (Heatmap + Tooltips + 3D Model)",
+      "nodes": [
+        "concept_composite_heatmap",
+        "concept_heatmap_overlay_component",
+        "concept_face3d_coordinate_coloring",
+        "concept_detection_type"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "docs/superpowers/specs/2026-05-28-heatmap-condition-tooltips-design.md"
+    },
+    {
+      "id": "qdrant_activity_logging_system",
+      "label": "Qdrant Activity Logging System (Events + Embeddings + RAG)",
+      "nodes": [
+        "concept_activity_event_model",
+        "concept_ollama_embedding_service",
+        "concept_qdrant_activity_log",
+        "concept_bloom_rag_retrieval"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-29-qdrant-activity-log-design.md"
+    }
+  ],
+  "input_tokens": 18500,
+  "output_tokens": 3800
+}

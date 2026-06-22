@@ -174,7 +174,7 @@ export const TrendGraph: React.FC<TrendGraphProps> = ({
               <Legend wrapperStyle={{ color: "rgb(var(--color-on-surface-variant))", fontSize: 12 }} />
               <Line type="monotone" dataKey="overallSeverity" name="Overall" stroke="#C17F60" strokeWidth={2} dot={false} />
               <Bar dataKey="acne" name="Acne" fill="#D4607A" opacity={0.7} />
-              <Bar dataKey="under_eye_bags" name="Under Eye Bags" fill="#C17F60" opacity={0.7} />
+              <Bar dataKey="under_eye_bags" name="Dark Circles" fill="#C17F60" opacity={0.7} />
               <Bar dataKey="redness" name="Redness" fill="#8B9E88" opacity={0.7} />
             </ComposedChart>
           )}

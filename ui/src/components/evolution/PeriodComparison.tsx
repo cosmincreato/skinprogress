@@ -57,7 +57,7 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
     overallSeverity: "Overall Severity",
     redness: "Redness",
     acne: "Acne",
-    under_eye_bags: "Under Eye Bags",
+    under_eye_bags: "Dark Circles",
     texture: "Texture",
     oiliness: "Oiliness",
     driness: "Dryness",

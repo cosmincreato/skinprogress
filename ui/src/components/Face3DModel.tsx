@@ -3,6 +3,18 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Detection } from "./HeatmapOverlay";
 
+const CONDITION_LABELS: Record<string, string> = {
+  acne: "Acne",
+  redness: "Redness",
+  under_eye_bags: "Dark circles",
+};
+
+function severityLabel(s: number): string {
+  if (s < 0.34) return "Mild";
+  if (s < 0.67) return "Moderate";
+  return "Severe";
+}
+
 // Condition colors (linear RGB, 0-1) — natural/subtle palette
 const ACNE_COLOR    = [0.75, 0.22, 0.17] as const; // crimson
 const REDNESS_COLOR = [0.88, 0.44, 0.44] as const; // soft rose
@@ -59,6 +71,7 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
   const blobsRef = useRef<ModelBlob[]>([]);
   const [pixelVersion, setPixelVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const scoresKey = JSON.stringify(scores) + JSON.stringify(perAngle) + JSON.stringify(detections);
 
@@ -203,6 +216,8 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
     let dragging = false, px = 0, py = 0;
     let rotX = 0.0, rotY = 0.0;
     let headGroup: THREE.Group | null = null;
+    let onHover: ((e: MouseEvent) => void) | null = null;
+    let onLeave: (() => void) | null = null;
 
     const startDrag = (x: number, y: number) => { dragging = true; px = x; py = y; };
     const moveDrag = (x: number, y: number) => {
@@ -309,6 +324,7 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
           const posAttr = geo.attributes.position as THREE.BufferAttribute;
           const normAttr = geo.attributes.normal as THREE.BufferAttribute | undefined;
           const colorBuf = new Float32Array(posAttr.count * 3);
+          const conditionData: { condition: string; severity: number }[] = new Array(posAttr.count);
           const wm = child.matrixWorld.elements;
 
           for (let i = 0; i < posAttr.count; i++) {
@@ -384,9 +400,19 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
             colorBuf[i * 3]     = r;
             colorBuf[i * 3 + 1] = g;
             colorBuf[i * 3 + 2] = b;
+
+            // Dominant condition for hover tooltip
+            const candidates = [
+              { condition: "acne",           w: acneBlend    },
+              { condition: "redness",        w: rednessBlend },
+              { condition: "under_eye_bags", w: eyeBlend     },
+            ];
+            const dom = candidates.reduce((a, b) => a.w >= b.w ? a : b);
+            conditionData[i] = dom.w > 0.08 ? { condition: dom.condition, severity: dom.w } : { condition: "", severity: 0 };
           }
 
           geo.setAttribute("color", new THREE.BufferAttribute(colorBuf, 3));
+          child.userData.conditionData = conditionData;
           child.material = new THREE.MeshPhysicalMaterial({
             vertexColors: true,
             roughness: 0.68,
@@ -399,6 +425,37 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
         });
 
         scene.add(headGroup);
+
+        const raycaster = new THREE.Raycaster();
+        onHover = (e: MouseEvent) => {
+          const rect = renderer.domElement.getBoundingClientRect();
+          const mx = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+          const my = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+          raycaster.setFromCamera(new THREE.Vector2(mx, my), camera);
+          const hits = raycaster.intersectObject(headGroup!, true);
+          if (!hits.length || !hits[0].face) { setTooltip(null); return; }
+          const mesh = hits[0].object as THREE.Mesh;
+          const cd = mesh.userData.conditionData as { condition: string; severity: number }[] | undefined;
+          if (!cd) { setTooltip(null); return; }
+          const { a, b, c } = hits[0].face;
+          const best = [a, b, c].reduce<{ condition: string; severity: number }>(
+            (acc, vi) => (cd[vi]?.severity ?? 0) > acc.severity ? cd[vi] : acc,
+            { condition: "", severity: 0 },
+          );
+          if (best.condition) {
+            setTooltip({
+              text: `${CONDITION_LABELS[best.condition]} — ${severityLabel(best.severity)}`,
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            });
+          } else {
+            setTooltip(null);
+          }
+        };
+        onLeave = () => setTooltip(null);
+        renderer.domElement.addEventListener("mousemove", onHover);
+        renderer.domElement.addEventListener("mouseleave", onLeave);
+
         if (!cleanedUp) setIsLoading(false);
       },
       undefined,
@@ -417,6 +474,8 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
       renderer.domElement.removeEventListener("touchstart", onTS);
       renderer.domElement.removeEventListener("touchmove", onTM);
       renderer.domElement.removeEventListener("touchend", endDrag);
+      if (onHover) renderer.domElement.removeEventListener("mousemove", onHover);
+      if (onLeave) renderer.domElement.removeEventListener("mouseleave", onLeave);
       scene.traverse((obj: THREE.Object3D) => {
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose();
@@ -444,6 +503,14 @@ export function Face3DModel({ scores, frontPhotoUrl, detections, perAngle }: Pro
               <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-xs text-blue-300/70">Loading face model…</p>
             </div>
+          </div>
+        )}
+        {tooltip && (
+          <div
+            className="absolute z-50 px-2 py-1 rounded bg-gray-900 text-white border border-white/10 text-[11px] pointer-events-none shadow-lg whitespace-nowrap"
+            style={{ left: tooltip.x, top: tooltip.y - 28 }}
+          >
+            {tooltip.text}
           </div>
         )}
       </div>

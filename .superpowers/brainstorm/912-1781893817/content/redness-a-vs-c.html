@@ -1,0 +1,103 @@
+<h2>A vs C for redness — what's the real difference?</h2>
+<p class="subtitle">Redness is diffuse (spreads across skin), not spotty like acne. That changes which approach wins.</p>
+
+<div class="split" style="gap:20px;align-items:flex-start">
+
+  <!-- Option A -->
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header" style="color:#63b3ed">A — Zone Blending</div>
+    <div class="mockup-body" style="padding:16px">
+      <!-- Scenario: high redness on left cheek, low on right, medium on front -->
+      <div style="font-size:11px;color:#7aa2d4;margin-bottom:10px">Scenario: left cheek very red, right cheek clear, nose medium</div>
+      <svg viewBox="0 0 200 220" style="width:100%;max-width:200px;display:block;margin:0 auto 12px">
+        <ellipse cx="100" cy="108" rx="72" ry="88" fill="#1a2540" stroke="#2a3a5c" stroke-width="1"/>
+        <!-- right cheek zone (viewer left = person right = low redness) -->
+        <ellipse cx="52" cy="115" rx="36" ry="48" fill="rgba(180,100,80,0.12)" stroke="none"/>
+        <!-- center zone (medium) -->
+        <ellipse cx="100" cy="108" rx="36" ry="60" fill="rgba(220,80,60,0.30)" stroke="none"/>
+        <!-- left cheek zone (viewer right = person left = HIGH redness) -->
+        <ellipse cx="148" cy="115" rx="36" ry="48" fill="rgba(255,40,20,0.55)" stroke="none"/>
+        <!-- blend seam — soft gradient between zones -->
+        <ellipse cx="124" cy="112" rx="14" ry="36" fill="rgba(240,60,40,0.22)" stroke="none"/>
+        <ellipse cx="76" cy="112" rx="14" ry="36" fill="rgba(200,70,50,0.15)" stroke="none"/>
+        <!-- face features -->
+        <ellipse cx="80" cy="95" rx="9" ry="5" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <ellipse cx="120" cy="95" rx="9" ry="5" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <circle cx="100" cy="122" r="4" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <!-- seam indicators -->
+        <line x1="75" y1="70" x2="75" y2="175" stroke="#2a3a5c" stroke-width="0.8" stroke-dasharray="3 3"/>
+        <line x1="125" y1="70" x2="125" y2="175" stroke="#2a3a5c" stroke-width="0.8" stroke-dasharray="3 3"/>
+        <text x="52" y="62" text-anchor="middle" font-size="8" fill="#ed8936">RIGHT</text>
+        <text x="100" y="62" text-anchor="middle" font-size="8" fill="#63b3ed">FRONT</text>
+        <text x="148" y="62" text-anchor="middle" font-size="8" fill="#9acd64">LEFT</text>
+      </svg>
+      <div style="font-size:11px;color:#7aa2d4;line-height:1.7">
+        ✓ Clear asymmetry — left cheek clearly redder<br>
+        ✓ Zone ownership is predictable<br>
+        ⚠ Seam at zone boundary can look unnatural<br>
+        ⚠ Nose redness driven only by front angle — misses side contributions
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header" style="color:#b794f4">C — Weighted Composite</div>
+    <div class="mockup-body" style="padding:16px">
+      <div style="font-size:11px;color:#7aa2d4;margin-bottom:10px">Same scenario: left cheek very red, right cheek clear, nose medium</div>
+      <svg viewBox="0 0 200 220" style="width:100%;max-width:200px;display:block;margin:0 auto 12px">
+        <ellipse cx="100" cy="108" rx="72" ry="88" fill="#1a2540" stroke="#2a3a5c" stroke-width="1"/>
+        <!-- smooth gradient — left cheek dominates on that side, bleeds softly everywhere -->
+        <!-- right side: mostly clear, tiny contribution from left angle -->
+        <ellipse cx="52" cy="115" rx="36" ry="48" fill="rgba(200,90,70,0.18)" stroke="none"/>
+        <!-- center: weighted avg of front (medium) + slight left contribution -->
+        <ellipse cx="100" cy="108" rx="36" ry="60" fill="rgba(230,70,50,0.36)" stroke="none"/>
+        <!-- left cheek: very high — left angle dominates -->
+        <ellipse cx="148" cy="115" rx="36" ry="50" fill="rgba(255,35,15,0.60)" stroke="none"/>
+        <!-- smooth falloff — no seam -->
+        <ellipse cx="114" cy="110" rx="22" ry="42" fill="rgba(245,55,35,0.20)" stroke="none"/>
+        <ellipse cx="86" cy="110" rx="22" ry="42" fill="rgba(215,75,55,0.12)" stroke="none"/>
+        <!-- face features -->
+        <ellipse cx="80" cy="95" rx="9" ry="5" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <ellipse cx="120" cy="95" rx="9" ry="5" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <circle cx="100" cy="122" r="4" fill="none" stroke="#2a3a5c" stroke-width="1"/>
+        <text x="52" y="62" text-anchor="middle" font-size="8" fill="#ed8936">RIGHT</text>
+        <text x="100" y="62" text-anchor="middle" font-size="8" fill="#63b3ed">FRONT</text>
+        <text x="148" y="62" text-anchor="middle" font-size="8" fill="#9acd64">LEFT</text>
+      </svg>
+      <div style="font-size:11px;color:#7aa2d4;line-height:1.7">
+        ✓ No seam — completely smooth gradient<br>
+        ✓ Every vertex weighted by how visible it is from each angle<br>
+        ✓ Nose gets front + slight side contributions naturally<br>
+        ⚠ High redness on one side bleeds slightly to the other<br>
+        ⚠ Asymmetry slightly softer / less dramatic
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="background:#131c2e;border:1px solid #2a3a5c;border-radius:10px;padding:16px;margin-top:20px">
+  <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7aa2d4;margin-bottom:8px">Key insight for redness</div>
+  <p style="font-size:13px;color:#e2e8f0;margin:0;line-height:1.7">
+    Redness is a <strong>diffuse condition</strong> — it's about skin tone across a region, not a precise spot location.
+    Option C's bleed effect is actually <em>realistic</em>: a cheek that's red in the side photo probably has some redness extending toward the nose too.
+    Option A would be better for acne spots (precise location matters) but C is more physically truthful for redness.
+  </p>
+  <div style="margin-top:12px;display:flex;gap:12px">
+    <div class="option" data-choice="hybrid" onclick="toggleSelect(this)" style="flex:1">
+      <div class="letter">★</div>
+      <div class="content">
+        <h3>Hybrid (recommended)</h3>
+        <p>Use <strong>C (weighted composite)</strong> for redness and under-eye bags. Use <strong>A (zone blending)</strong> for acne spots. Each condition picks the right strategy.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="c-only" onclick="toggleSelect(this)" style="flex:1">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>C for everything</h3>
+        <p>Simpler: weighted composite for all conditions. Acne spots lose some precision at zone boundaries but the smoothness wins overall.</p>
+      </div>
+    </div>
+  </div>
+</div>

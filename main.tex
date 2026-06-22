@@ -1,0 +1,93 @@
+%!TEX program = xelatex
+\documentclass[10pt, letterpaper]{article}
+
+\usepackage{fontspec}
+\usepackage[margin=0.6in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue}
+
+\titleformat{\section}{\bfseries}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{4pt}{3pt}
+
+\setlist[itemize]{noitemsep, topsep=1pt, leftmargin=*}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE \textbf{Nicolae-Cosmin Mărășoiu}} \\[3pt]
+  0770 767 845 \quad
+  \href{mailto:marasoiu.cos@gmail.com}{marasoiu.cos@gmail.com} \quad
+  \href{https://www.linkedin.com/in/cosmin-marasoiu}{linkedin.com/in/cosmin-marasoiu} \quad
+  \href{https://github.com/cosmincreato}{github.com/cosmincreato}
+\end{center}
+
+\section*{SUMMARY}
+Third-year Computer Science student with hands-on experience across the full stack --- from CI/CD pipelines and cloud infrastructure to AI-powered web applications. Proven ability to ship production-ready systems, from RAG pipelines and skin analysis platforms to automated DevOps workflows.
+
+\section*{EDUCATION}
+\begin{itemize}
+  \item \textbf{University of Bucharest} \hfill Oct 2023 -- Jun 2026 (expected) \\
+        Bachelor of Science in Computer Science
+
+  \item \textbf{``Zinca Golescu'' National College} \hfill Sep 2019 -- Jun 2023 \\
+        Mathematics and Computer Science \quad \textbf{Awards:} 2nd Place, County Stage, Romanian National Olympiad in Informatics (2022)
+\end{itemize}
+
+\section*{WORK EXPERIENCE}
+\begin{itemize}
+  \item \textbf{DevOps \& Platform Engineer Intern} (Aegis Core Tech) \hfill Jan 2026 -- Present
+        \begin{itemize}
+          \item Orchestrated CI/CD pipelines in GitHub Actions with automated testing and deployment stages.
+          \item Automated TLS certificate distribution across servers via Shell scripts and Cron jobs, preventing downtime from expired credentials.
+          \item Deployed applications on Raspberry Pi for on-premise hosting; separately deployed a web app via Cloudflare Tunnel and Azure for secure public exposure.
+        \end{itemize}
+
+  \item \textbf{Software Engineering Intern} (Romanian Senate -- IT Department) \hfill Sep 2025 -- Oct 2025 \\
+        \textbf{GitHub:} \href{https://github.com/cosmincreato/senate-rag}{github.com/cosmincreato/senate-rag}
+        \begin{itemize}
+          \item Designed a privacy-first RAG pipeline (ASP.NET Core + Python) for semantic search over Romanian legislation with citeable answers.
+          \item Implemented batch embedding, Qdrant vector storage, and Docker Compose orchestration with Ollama for reproducible local LLM inference.
+          \item Added an MCP server for IDE integration, enabling interactive developer workflows against the RAG stack.
+        \end{itemize}
+\end{itemize}
+
+\section*{PROJECTS}
+\begin{itemize}
+  \item \textbf{SkinProgress} \textit{(C\#, ASP.NET Core, React, TypeScript, Python, FastAPI, PostgreSQL)} \hfill \href{https://github.com/cosmincreato/skinprogress}{github.com/cosmincreato/skinprogress}
+        \begin{itemize}
+          \item Built an AI-powered skin analysis app with multi-angle photo capture and automated acne/redness/under-eye scoring via a FastAPI microservice.
+          \item Implemented a RAG pipeline (Qdrant + Ollama + n8n) for context-aware chatbot skincare recommendations.
+          \item Architected an evolution dashboard with trend graphs, period comparison, and PDF export; fully containerized with Docker Compose.
+        \end{itemize}
+
+  \item \textbf{Socialy} \textit{(C\#, ASP.NET Core, MySQL)} \hfill \href{https://github.com/cosmincreato/socialy}{github.com/cosmincreato/socialy}
+        \begin{itemize}
+          \item Full-stack social media platform with role-based auth, groups, media posts, and content moderation; delivered in an Agile (Scrum) team.
+        \end{itemize}
+
+  \item \textbf{Genetic Algorithm for Quadratic Optimization} \textit{(Python, NumPy, Matplotlib)} \hfill \href{https://github.com/cosmincreato/quadratic-genetic-algorithm}{github.com/cosmincreato/quadratic-genetic-algorithm} \\
+        Genetic algorithm for quadratic function optimization with real-time animated visualization.
+
+  \item \textbf{SmartHack 2025 --- Office Management System} \textit{(Python, FastAPI, MongoDB, React)} \\
+        24-hour hackathon: full-stack office booking app with dynamic floor-plan uploads, real-time room reservation, and concurrent request handling.
+\end{itemize}
+
+\section*{TECHNICAL SKILLS}
+\textbf{Languages:} C\#, Java, Python, SQL (PostgreSQL, MySQL, PL/SQL), C++, Go, TypeScript, JavaScript, Bash \\
+\textbf{Frameworks:} ASP.NET Core, Entity Framework, React, FastAPI, Vite, Tailwind CSS \\
+\textbf{Infrastructure \& Tools:} Docker, GitHub Actions, GitLab CI, Cloudflare Tunnel, Azure, Qdrant, Ollama, n8n, Linux, Git
+
+\section*{VOLUNTEERING}
+\begin{itemize}
+  \item \textbf{Asociația Studenților la Matematică și Informatică} \textit{(Educational Department)} --- Ran student representative elections and conducted outreach sessions for prospective students.
+  \item \textbf{East European Comic Con} --- Event staff responsible for participant credential checks across the venue.
+\end{itemize}
+
+\end{document}

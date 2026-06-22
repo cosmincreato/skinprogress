@@ -1,4 +1,5 @@
 import sys, os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
@@ -13,6 +14,7 @@ def blank_image(w=64, h=64):
 def test_composite_overlay_returns_string_or_original():
     """composite function returns a data URL (str) or None, never raises."""
     from app import _build_composite_heatmap_overlay_and_metadata
+
     img = blank_image()
     with patch("app._face_landmarks_xy", return_value=None):
         result, detections = _build_composite_heatmap_overlay_and_metadata(img)
@@ -24,10 +26,16 @@ def test_composite_overlay_returns_string_or_original():
 def test_composite_overlay_generates_detections_with_valid_input():
     """When heatmaps are present, detections list is non-empty."""
     from app import _build_composite_heatmap_overlay_and_metadata
+
     img = blank_image()
     with patch("app._face_landmarks_xy", return_value=None):
-        with patch("app._build_redness_heatmap", return_value=np.random.rand(64, 64) * 0.8):
-            with patch("app._build_under_eye_heatmap", return_value=np.random.rand(64, 64) * 0.3):
+        with patch(
+            "app._build_redness_heatmap", return_value=np.random.rand(64, 64) * 0.8
+        ):
+            with patch(
+                "app._build_under_eye_heatmap",
+                return_value=np.random.rand(64, 64) * 0.3,
+            ):
                 result, detections = _build_composite_heatmap_overlay_and_metadata(img)
     # Should have heatmap overlays, so detections may or may not be empty (randomness)
     # Just verify the return contract
