@@ -1,5 +1,0 @@
-C:\Users\diap\Desktop\skinprogress\SkinProgress\SkinProgress\wwwroot\heatmaps\b555cfa8-6b07-40a8-8789-523c381f8681\2026-05-29-front.png
-C:\Users\diap\Desktop\skinprogress\SkinProgress\SkinProgress\wwwroot\heatmaps\b555cfa8-6b07-40a8-8789-523c381f8681\2026-05-29-left.png
-C:\Users\diap\Desktop\skinprogress\SkinProgress\SkinProgress\wwwroot\heatmaps\cc162097-ee1d-4e8e-bbd4-a0a3dc070b9a\2026-05-29-front.png
-C:\Users\diap\Desktop\skinprogress\ui\public\vite.svg
-C:\Users\diap\Desktop\skinprogress\ui\src\assets\react.svg

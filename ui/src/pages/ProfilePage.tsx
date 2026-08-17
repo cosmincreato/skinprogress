@@ -147,7 +147,6 @@ const getGreeting = () => {
   return "Good evening";
 };
 
-// ─────────────────────────────────────────────
 
 const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();

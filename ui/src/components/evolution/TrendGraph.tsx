@@ -77,15 +77,20 @@ export const TrendGraph: React.FC<TrendGraphProps> = ({
   }, [data, dateRangeStart, dateRangeEnd]);
 
   const statistics = useMemo(() => {
-    if (filteredData.length === 0) return { avgSeverity: 0, maxSeverity: 0, minSeverity: 0, trend: "stable" };
+    if (filteredData.length === 0) return { avgSeverity: 0, maxSeverity: 0, minSeverity: 0, trend: "stable", worstDay: "", bestDay: "" };
     const severities = filteredData.map(d => d.overallSeverity);
     const avg = severities.reduce((a, b) => a + b) / severities.length;
     const first = severities[0];
     const last = severities[severities.length - 1];
+    const maxVal = Math.max(...severities);
+    const minVal = Math.min(...severities);
+    const formatDay = (date: string) => new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
     return {
       avgSeverity: avg,
-      maxSeverity: Math.max(...severities),
-      minSeverity: Math.min(...severities),
+      maxSeverity: maxVal,
+      minSeverity: minVal,
+      worstDay: formatDay(filteredData[severities.indexOf(maxVal)].date),
+      bestDay:  formatDay(filteredData[severities.indexOf(minVal)].date),
       trend: last < first ? "improving" : last > first ? "worsening" : "stable",
     };
   }, [filteredData]);
@@ -110,10 +115,10 @@ export const TrendGraph: React.FC<TrendGraphProps> = ({
   }
 
   const statCards = [
-    { label: "Average Severity", value: `${statistics.avgSeverity.toFixed(1)}/10`, accent: "#C17F60" },
-    { label: "Trend", value: statistics.trend, capitalize: true, accent: statistics.trend === "improving" ? "#8B9E88" : statistics.trend === "worsening" ? "#D4607A" : "#B8A89C" },
-    { label: "Peak Severity", value: `${statistics.maxSeverity.toFixed(1)}/10`, accent: "#D4607A" },
-    { label: "Best Day", value: `${statistics.minSeverity.toFixed(1)}/10`, accent: "#8B9E88" },
+    { label: "Average Severity", value: `${statistics.avgSeverity.toFixed(1)}/10`, sub: null, accent: "#C17F60" },
+    { label: "Trend", value: statistics.trend, sub: null, capitalize: true, accent: statistics.trend === "improving" ? "#8B9E88" : statistics.trend === "worsening" ? "#D4607A" : "#B8A89C" },
+    { label: "Peak Severity", value: `${statistics.maxSeverity.toFixed(1)}/10`, sub: statistics.worstDay, accent: "#D4607A" },
+    { label: "Best Day", value: `${statistics.minSeverity.toFixed(1)}/10`, sub: statistics.bestDay, accent: "#8B9E88" },
   ];
 
   return (
@@ -129,6 +134,9 @@ export const TrendGraph: React.FC<TrendGraphProps> = ({
             >
               {card.value}
             </p>
+            {card.sub && (
+              <p className="text-xs text-on-surface-variant mt-1">{card.sub}</p>
+            )}
           </div>
         ))}
       </div>

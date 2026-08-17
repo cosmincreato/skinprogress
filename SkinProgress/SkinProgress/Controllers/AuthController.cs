@@ -40,8 +40,7 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
-    // ==================== Legacy endpoints (IAuthService) ====================
-    // These endpoints use the existing IAuthService for backward compatibility
+    // Legacy endpoints kept for backward compatibility with IAuthService
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto)
@@ -92,8 +91,7 @@ public class AuthController : ControllerBase
         return Ok(user);
     }
 
-    // ==================== New email-based authentication endpoints ====================
-    // These endpoints implement the new email registration + confirmation flow
+    // Email registration + confirmation flow
 
     /// <summary>
     /// Register new user with email and password.

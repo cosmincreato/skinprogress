@@ -15,14 +15,6 @@ namespace SkinProgress.Tests
     [TestClass]
     public class EvolutionAnalyticsServiceTests
     {
-        /// <summary>
-        /// NOTE: Full unit tests require DbContext mocking which is complex with EF Core async operations.
-        /// Recommended approach: Integration tests against test database or in-memory SQLite.
-        /// 
-        /// This test file demonstrates the test structure and key test cases.
-        /// For production: Use SQLite in-memory provider with DbContextOptionsBuilder
-        /// </summary>
-
         [TestMethod]
         public void ServiceCanBeInstantiated()
         {

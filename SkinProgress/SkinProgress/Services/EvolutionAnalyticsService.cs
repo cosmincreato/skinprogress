@@ -127,7 +127,8 @@ namespace SkinProgress.Services
                 {
                     Acne = entity.AcneSeverity ?? 0,
                     Inflammation = entity.InflammationSeverity ?? 0,
-                    Redness = entity.RednessSeverity ?? 0
+                    Redness = entity.RednessSeverity ?? 0,
+                    UnderEyeBags = entity.UnderEyeBagsSeverity ?? 0
                 },
                 ZoneSeverities = new ZoneSeveritiesDto
                 {
@@ -205,16 +206,21 @@ namespace SkinProgress.Services
                     var acneScores = analysisHistory.Select(a => (double)a.SeverityScores.Acne).ToList();
                     var inflammationScores = analysisHistory.Select(a => (double)a.SeverityScores.Inflammation).ToList();
                     var rednessScores = analysisHistory.Select(a => (double)a.SeverityScores.Redness).ToList();
+                    var underEyeScores = analysisHistory.Select(a => (double)a.SeverityScores.UnderEyeBags).ToList();
 
                     var acneImprovement = CalculateImprovement(acneScores);
                     var inflammationImprovement = CalculateImprovement(inflammationScores);
                     var rednessImprovement = CalculateImprovement(rednessScores);
+                    var underEyeImprovement = CalculateImprovement(underEyeScores);
 
                     dashboard.TrendMetrics = new TrendMetricsDto
                     {
                         AcneImprovement = (decimal)acneImprovement,
                         InflammationImprovement = (decimal)inflammationImprovement,
                         RednessImprovement = (decimal)rednessImprovement,
+                        UnderEyeImprovement = (decimal)underEyeImprovement,
+                        UnderEyeAverage = (decimal)(underEyeScores.Count > 0 ? underEyeScores.Average() : 0),
+                        UnderEyeTrend = underEyeImprovement < -5 ? "improving" : underEyeImprovement > 5 ? "worsening" : "stable",
                         HasMeaningfulTrend = analysisHistory.Count >= 3,
                         AnalysisCount = analysisHistory.Count
                     };
@@ -240,12 +246,8 @@ namespace SkinProgress.Services
         }
 
         /// <summary>
-        /// Generates a PDF report of skin progress.
-        /// Selects representative images and includes severity summaries.
-        /// Performance Target: < 10 seconds
-        /// 
-        /// Note: This implementation returns HTML byte array.
-        /// For production PDF generation, integrate iText library.
+        /// Builds an HTML skin progress report with representative images and severity summaries,
+        /// returned as UTF-8 bytes for client-side PDF conversion.
         /// </summary>
         public async Task<byte[]> GeneratePdfReportAsync(string userId, DateTime startDate, DateTime endDate)
         {
@@ -271,9 +273,6 @@ namespace SkinProgress.Services
                 // Build HTML report
                 var html = GeneratePdfHtml(userId, startDate, endDate, analysisHistory, representativeImages);
 
-                // Convert HTML to bytes
-                // NOTE: In production, use iText or similar to convert HTML to actual PDF
-                // For now, returning HTML as byte array for client-side conversion
                 return System.Text.Encoding.UTF8.GetBytes(html);
             }
             catch (InvalidOperationException ex)

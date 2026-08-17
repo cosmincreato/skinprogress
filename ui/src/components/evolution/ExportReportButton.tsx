@@ -1,29 +1,9 @@
 import React, { useState } from "react";
 import html2pdf from "html2pdf.js";
+import html2canvas from "html2canvas";
 import { getAuthToken } from "../../services/authService";
 
-/**
- * ExportReportButton Component
- *
- * SOLID Principles:
- * - Single Responsibility: Handles only PDF generation and download
- * - Dependency Inversion: Receives data as props, client-side PDF generation with pdfkit
- * - Interface Segregation: Minimal required props
- * - Open/Closed: Extensible for different report formats (CSV, etc.)
- *
- * Performance Target: < 10 seconds to generate and download (SC-003)
- *
- * Features:
- * - Generate PDF with trend graphs embedded
- * - Include user information and date range
- * - Client-side generation (no server dependency)
- * - Fallback to server-side generation if needed
- *
- * TODO: Install pdfkit for client-side PDF generation
- * npm install pdfkit @types/pdfkit
- *
- * Future Enhancement: Server-side generation via /api/reports/export
- */
+// Generates the evolution report server-side and downloads it as a PDF, with the trend chart captured client-side and embedded.
 
 export interface ExportReportButtonProps {
   dateRangeStart: Date;
@@ -32,6 +12,7 @@ export interface ExportReportButtonProps {
   isDisabled?: boolean;
   onExportStart?: () => void;
   onExportComplete?: (success: boolean, fileName?: string) => void;
+  chartRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -49,6 +30,7 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
   isDisabled = false,
   onExportStart,
   onExportComplete,
+  chartRef,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,39 +61,6 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
     try {
       onExportStart?.();
 
-      // Step 1: Try client-side generation with pdfkit
-      // TODO: Replace with actual pdfkit implementation once installed
-      //
-      // const PDFDocument = require('pdfkit');
-      // const doc = new PDFDocument();
-      //
-      // // Add header
-      // doc.fontSize(24).text('Skin Progress Evolution Report', 100, 100);
-      // doc.fontSize(12).text(`Generated for ${userName}`, 100, 140);
-      // doc.fontSize(10).text(`Period: ${formatDate(dateRangeStart)} to ${formatDate(dateRangeEnd)}`, 100, 160);
-      //
-      // // Add date range info
-      // doc.moveTo(100, 170).lineTo(500, 170).stroke();
-      //
-      // // Add summary statistics
-      // doc.fontSize(16).text('Summary Statistics', 100, 190);
-      // doc.fontSize(11).text('Average Severity: [TO BE CALCULATED]', 100, 215);
-      // doc.fontSize(11).text('Trend: [TO BE CALCULATED]', 100, 235);
-      //
-      // // TODO: Add embedded charts/graphs
-      //
-      // // Stream to blob
-      // const chunks: any[] = [];
-      // doc.on('data', (chunk: any) => chunks.push(chunk));
-      // doc.on('end', () => {
-      //   const blob = new Blob(chunks, { type: 'application/pdf' });
-      //   downloadPDF(blob, `skin-progress-${formatDate(dateRangeStart)}.pdf`);
-      //   setIsExporting(false);
-      //   onExportComplete?.(true);
-      // });
-      // doc.end();
-
-      // For now, use server-side generation (Step 2 fallback)
       await generateReportServerSide();
 
       setIsExporting(false);
@@ -122,6 +71,17 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
       setError(errorMsg);
       setIsExporting(false);
       onExportComplete?.(false);
+    }
+  };
+
+  const captureChartImage = async (): Promise<string | null> => {
+    const el = chartRef?.current;
+    if (!el) return null;
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+      return canvas.toDataURL("image/png");
+    } catch {
+      return null;
     }
   };
 
@@ -143,16 +103,26 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
       throw new Error(`Server error: ${response.statusText}`);
     }
 
-    const html = await response.text();
+    const [html, chartDataUrl] = await Promise.all([
+      response.text(),
+      captureChartImage(),
+    ]);
+
     const fileName = `skin-progress-${formatDate(dateRangeStart)}-to-${formatDate(dateRangeEnd)}.pdf`;
 
-    // DOMParser reliably separates <style> and body content from a full HTML document.
-    // Passing the raw string via innerHTML strips structural tags unpredictably.
     const parsed = new DOMParser().parseFromString(html, "text/html");
     const styles = Array.from(parsed.querySelectorAll("style"))
       .map((s) => s.outerHTML)
       .join("");
-    const fragment = `<div style="font-family:Arial,sans-serif;padding:20px;background:#fff;">${styles}${parsed.body.innerHTML}</div>`;
+
+    const chartSection = chartDataUrl
+      ? `<div style="margin:24px 0;">
+           <h3 style="font-family:Arial,sans-serif;font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;">Severity Over Time — Detailed Metrics</h3>
+           <img src="${chartDataUrl}" style="width:100%;border-radius:8px;border:1px solid #e5e7eb;" />
+         </div>`
+      : "";
+
+    const fragment = `<div style="font-family:Arial,sans-serif;padding:20px;background:#fff;">${styles}${parsed.body.innerHTML}${chartSection}</div>`;
 
     await html2pdf()
       .set({
@@ -247,44 +217,6 @@ export const ExportReportButton: React.FC<ExportReportButtonProps> = ({
         </div>
       )}
 
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700 w-full">
-        <p className="font-medium flex items-center gap-2">
-          <svg
-            className="h-4 w-4"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <text
-              x="12"
-              y="16"
-              fontSize="14"
-              textAnchor="middle"
-              fill="white"
-              fontWeight="bold"
-            >
-              i
-            </text>
-          </svg>
-          Report Details
-        </p>
-        <ul className="mt-2 space-y-1 text-xs">
-          <li>✓ Includes trend graphs and statistics</li>
-          <li>
-            ✓ Period: {formatDate(dateRangeStart)} to {formatDate(dateRangeEnd)}
-          </li>
-          <li>✓ Generated with your latest analysis data</li>
-          <li>✓ Suitable for sharing with dermatologists</li>
-        </ul>
-      </div>
-
-      {/* Accessibility Info */}
-      <div className="text-xs text-slate-600">
-        <p>Estimated generation time: &lt;10 seconds</p>
-        <p>File format: PDF | Size: ~2-5 MB</p>
-      </div>
     </div>
   );
 };

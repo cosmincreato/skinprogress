@@ -111,12 +111,9 @@ export const PeriodComparison: React.FC<PeriodComparisonProps> = ({
             <p className={`text-sm font-medium mt-2 ${
               overallImprovement > 0 ? "text-secondary" : overallImprovement < 0 ? "text-bloom" : "text-on-surface-variant"
             }`}>
-              {overallImprovement > 0 ? "✨ Your skin is improving!" : overallImprovement < 0 ? "⚠ Skin condition worsened" : "→ No significant change"}
+              {overallImprovement > 0 ? "Your skin is improving" : overallImprovement < 0 ? "Skin condition worsened" : "No significant change"}
             </p>
           </div>
-          <span className="text-4xl">
-            {overallImprovement > 0 ? "📈" : overallImprovement < 0 ? "📉" : "➡️"}
-          </span>
         </div>
       </div>
 

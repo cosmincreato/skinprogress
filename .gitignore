@@ -40,17 +40,20 @@ appsettings.Local.json
 **/wwwroot/selfies/*
 **/wwwroot/uploads/*
 !**/wwwroot/uploads/.gitkeep
+**/wwwroot/heatmaps/
+DEMO_SELFIES/
 
 ## Editor Specific
 .vscode/
 .claude/
-.github/
 
 # Byte-compiled / optimized / DLL files
-ai-service/__pycache__/
-ai-service/*.pyc
+**/__pycache__/
+*.pyc
 
 # Local virtual environments
 ai-service/.venv/
+
+.ruff_cache/
 
 .env

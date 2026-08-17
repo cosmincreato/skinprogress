@@ -107,7 +107,7 @@ export function ChatbotWidget() {
           {/* Header */}
           <div className="bg-bloom px-6 py-4 rounded-t-2xl flex items-center justify-between">
             <h3 className="text-white font-semibold flex items-center gap-2">
-              🌸 Bloom
+              Bloom
             </h3>
             <button
               onClick={() => setIsOpen(false)}
@@ -135,7 +135,7 @@ export function ChatbotWidget() {
               <div className="flex items-center justify-center h-full text-center">
                 <div>
                   <p className="text-on-surface-variant mb-2">
-                    ✨ Hi, I'm Bloom! How can I help your skin glow today?
+                    Hi, I'm Bloom. How can I help your skin glow today?
                   </p>
                   <p className="text-xs text-on-surface-variant/70">
                     Your friendly skincare guide
