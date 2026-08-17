@@ -72,8 +72,8 @@ cd ai-service && pytest
 
 ## Key features
 
-- **Evolution dashboard** — trend graphs over configurable date ranges, period-over-period comparison, PDF export
-- **Photo analysis** — per-angle acne/redness/bags scoring with optional heatmap overlays
-- **Habit tracking** — streaks, badges, missions tied to daily skincare routines
-- **Chatbot** — RAG-backed skincare Q&A over the user's own analysis history via Qdrant + Ollama
-- **GDPR tooling** — audit logging and data export/deletion requests
+- **Evolution dashboard** - trend graphs over configurable date ranges, period-over-period comparison, PDF export
+- **Photo analysis** - per-angle acne/redness/bags scoring with optional heatmap overlays
+- **Habit tracking** - streaks, badges, missions tied to daily skincare routines
+- **Chatbot** - RAG-backed skincare Q&A over the user's own analysis history via Qdrant + Ollama
+- **GDPR tooling** - audit logging and data export/deletion requests
