@@ -1,4 +1,5 @@
 import sys, os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unittest.mock import patch, MagicMock
@@ -8,6 +9,7 @@ import importlib
 def _reload_app():
     """Re-import app so module-level globals reset between tests."""
     import app as _app
+
     _app._face_landmarker = None
     return _app
 
@@ -79,6 +81,7 @@ def test_face_landmarks_xy_returns_none_when_landmarker_is_none():
     """If _get_face_landmarker returns None, _face_landmarks_xy returns None."""
     import numpy as np
     from PIL import Image
+
     app = _reload_app()
     image = Image.fromarray(np.full((100, 100, 3), 128, dtype=np.uint8))
     with patch("app._get_face_landmarker", return_value=None):
@@ -90,6 +93,7 @@ def test_face_landmarks_xy_returns_none_when_no_face_detected():
     """If face_landmarks is empty, returns None."""
     import numpy as np
     from PIL import Image
+
     app = _reload_app()
     fake_lmk = _make_fake_landmarker(None)
     with patch("app._get_face_landmarker", return_value=fake_lmk):
@@ -103,6 +107,7 @@ def test_face_landmarks_xy_converts_normalized_to_pixel_coords():
     """Normalized (0.5, 0.5) on a 200x100 image -> pixel (100, 50)."""
     import numpy as np
     from PIL import Image
+
     app = _reload_app()
     fake_lmk = _make_fake_landmarker([(0.5, 0.5), (1.0, 0.0)])
     image = Image.fromarray(np.full((100, 200, 3), 128, dtype=np.uint8))  # w=200, h=100
@@ -110,7 +115,7 @@ def test_face_landmarks_xy_converts_normalized_to_pixel_coords():
         result = app._face_landmarks_xy(image)
     assert result is not None
     assert result.shape == (2, 2)
-    assert result[0, 0] == 100   # x = 0.5 * 200 = 100
-    assert result[0, 1] == 50    # y = 0.5 * 100 = 50
-    assert result[1, 0] == 199   # x = 1.0 * 200 = 200, clipped to 199
-    assert result[1, 1] == 0     # y = 0.0 * 100 = 0
+    assert result[0, 0] == 100  # x = 0.5 * 200 = 100
+    assert result[0, 1] == 50  # y = 0.5 * 100 = 50
+    assert result[1, 0] == 199  # x = 1.0 * 200 = 200, clipped to 199
+    assert result[1, 1] == 0  # y = 0.0 * 100 = 0

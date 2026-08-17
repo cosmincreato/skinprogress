@@ -40,8 +40,7 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
-    // ==================== Legacy endpoints (IAuthService) ====================
-    // These endpoints use the existing IAuthService for backward compatibility
+    // Legacy endpoints kept for backward compatibility with IAuthService
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto)
@@ -92,8 +91,7 @@ public class AuthController : ControllerBase
         return Ok(user);
     }
 
-    // ==================== New email-based authentication endpoints ====================
-    // These endpoints implement the new email registration + confirmation flow
+    // Email registration + confirmation flow
 
     /// <summary>
     /// Register new user with email and password.
@@ -289,12 +287,8 @@ public class AuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Still return 200 OK to not reveal email existence
             _logger.LogWarning($"Password reset request: {ex.Message}");
-            return Ok(new
-            {
-                message = $"If an account exists with {request.Email}, you will receive a password reset email."
-            });
+            return BadRequest(new { message = "Email does not exist." });
         }
         catch (Exception ex)
         {

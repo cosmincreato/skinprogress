@@ -65,6 +65,15 @@ namespace SkinProgress.Models.DTOs
         /// <summary>Redness severity improvement percentage (same formula as acne)</summary>
         public decimal? RednessImprovement { get; set; }
 
+        /// <summary>Under-eye bags / dark circles average severity (0-10 scale)</summary>
+        public decimal? UnderEyeAverage { get; set; }
+
+        /// <summary>Under-eye bags trend direction: "improving", "stable", "worsening"</summary>
+        public string? UnderEyeTrend { get; set; }
+
+        /// <summary>Under-eye bags severity improvement percentage (same formula as acne)</summary>
+        public decimal? UnderEyeImprovement { get; set; }
+
         /// <summary>
         /// Indicates data quality: true if enough data points for meaningful trend, false for sparse data.
         /// Threshold: >=3 selfies considered sufficient

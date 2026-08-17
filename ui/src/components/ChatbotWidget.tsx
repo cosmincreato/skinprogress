@@ -103,11 +103,11 @@ export function ChatbotWidget() {
     <div className="fixed bottom-6 right-6 z-50">
       {/* Chat Window */}
       {isOpen && (
-        <div className="bg-slate-900 border border-pink-400/40 rounded-2xl shadow-2xl w-96 h-96 flex flex-col mb-4">
+        <div className="rounded-2xl shadow-2xl w-96 h-96 flex flex-col mb-4 border border-skin-border overflow-hidden" style={{ backgroundColor: "rgb(var(--color-surface))" }}>
           {/* Header */}
-          <div className="bg-gradient-to-r from-pink-500 to-pink-400 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-bloom px-6 py-4 rounded-t-2xl flex items-center justify-between">
             <h3 className="text-white font-semibold flex items-center gap-2">
-              🌸 Bloom
+              Bloom
             </h3>
             <button
               onClick={() => setIsOpen(false)}
@@ -130,12 +130,12 @@ export function ChatbotWidget() {
           </div>
 
           {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-surface">
             {messages.length === 0 && (
               <div className="flex items-center justify-center h-full text-center">
                 <div>
                   <p className="text-on-surface-variant mb-2">
-                    ✨ Hi, I'm Bloom! How can I help your skin glow today?
+                    Hi, I'm Bloom. How can I help your skin glow today?
                   </p>
                   <p className="text-xs text-on-surface-variant/70">
                     Your friendly skincare guide
@@ -154,8 +154,8 @@ export function ChatbotWidget() {
                 <div
                   className={`max-w-xs px-4 py-2 rounded-lg ${
                     message.type === "user"
-                      ? "bg-gradient-to-r from-pink-500 to-pink-400 text-white rounded-br-none"
-                      : "bg-slate-800 text-on-surface rounded-bl-none"
+                      ? "bg-bloom text-white rounded-br-none"
+                      : "bg-surface-warm text-on-surface rounded-bl-none border border-skin-border"
                   }`}
                 >
                   <p className="text-sm">{message.text}</p>
@@ -171,18 +171,18 @@ export function ChatbotWidget() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-slate-700 text-on-surface px-4 py-2 rounded-lg rounded-bl-none">
+                <div className="bg-surface-warm text-on-surface px-4 py-2 rounded-lg rounded-bl-none border border-skin-border">
                   <div className="flex space-x-2">
                     <div
-                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      className="w-2 h-2 bg-bloom rounded-full animate-bounce"
                       style={{ animationDelay: "0ms" }}
                     ></div>
                     <div
-                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      className="w-2 h-2 bg-bloom rounded-full animate-bounce"
                       style={{ animationDelay: "150ms" }}
                     ></div>
                     <div
-                      className="w-2 h-2 bg-on-surface rounded-full animate-bounce"
+                      className="w-2 h-2 bg-bloom rounded-full animate-bounce"
                       style={{ animationDelay: "300ms" }}
                     ></div>
                   </div>
@@ -194,7 +194,7 @@ export function ChatbotWidget() {
           </div>
 
           {/* Input Form */}
-          <div className="border-t border-pink-400/30 p-4 rounded-b-2xl">
+          <div className="border-t border-skin-border p-4 rounded-b-2xl bg-surface">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input
                 type="text"
@@ -202,12 +202,12 @@ export function ChatbotWidget() {
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Type your message..."
                 disabled={isLoading}
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-surface-warm border border-skin-border rounded-lg text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-bloom disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={isLoading || !inputValue.trim()}
-                className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition"
+                className="bg-bloom hover:bg-bloom-hover text-white px-4 py-2 rounded-lg font-medium transition shadow-sm hover:shadow-md disabled:opacity-50"
               >
                 <svg
                   className="w-5 h-5"
@@ -231,7 +231,7 @@ export function ChatbotWidget() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gradient-to-r from-pink-500 to-pink-400 hover:from-pink-600 hover:to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center ml-80"
+        className="bg-bloom hover:bg-bloom-hover text-white p-4 rounded-full shadow-lg hover:shadow-xl transition transform hover:scale-110 w-16 h-16 flex items-center justify-center ml-80"
       >
         {isOpen ? (
           <svg

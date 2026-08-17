@@ -1,511 +1,256 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import type { TrendData } from "../components/evolution/TrendGraph";
 import TrendGraph from "../components/evolution/TrendGraph";
 import ExportReportButton from "../components/evolution/ExportReportButton";
 import PeriodComparison from "../components/evolution/PeriodComparison";
 import { getAuthToken } from "../services/authService";
-/**
- * Evolution Analysis Dashboard Page
- *
- * SOLID Principles Applied:
- * - Single Responsibility: Container component only manages page structure and routing
- * - Dependency Inversion: Receives API client and analytics service as props or via context
- * - Interface Segregation: Component exposes minimal required props interface
- * - Open/Closed: Extensible for new features (comparison tab, additional metrics) without modification
- *
- * Features:
- * 1. Trend Graphs (User Story 1 - P1)
- * 2. PDF Export (User Story 2 - P1)
- * 3. Period Comparison (User Story 3 - P2)
- *
- * Performance Targets (Constitutional Principle IV):
- * - Graph load: < 2 seconds on 4G mobile (SC-001)
- * - Date-range switching: < 500ms (SC-004)
- * - PDF export: < 10 seconds (SC-003)
- */
+
 export const EvolutionPage: React.FC = () => {
-  // Tab state for switching between Trends and Comparison views
-  const [activeTab, setActiveTab] = useState<"trends" | "comparison">("trends");
+  const navigate = useNavigate();
 
-  // Date range filters
-  const [dateRangeStart, setDateRangeStart] = useState<Date>(
-    new Date(new Date().setDate(new Date().getDate() - 30)), // Default 30 days ago
-  );
-  const [dateRangeEnd, setDateRangeEnd] = useState<Date>(new Date());
+  const today = new Date();
+  const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
 
-  // Comparison period states (for second tab)
-  const [comparisonPeriod1Start, setComparisonPeriod1Start] = useState<Date>(
-    new Date(new Date().setDate(new Date().getDate() - 60)),
-  );
-  const [comparisonPeriod1End, setComparisonPeriod1End] = useState<Date>(
-    new Date(new Date().setDate(new Date().getDate() - 30)),
-  );
-  const [comparisonPeriod2Start, setComparisonPeriod2Start] = useState<Date>(
-    new Date(new Date().setDate(new Date().getDate() - 30)),
-  );
-  const [comparisonPeriod2End, setComparisonPeriod2End] = useState<Date>(
-    new Date(),
-  );
+  const [dateRangeStart, setDateRangeStart] = useState<Date>(daysAgo(60));
+  const [dateRangeEnd,   setDateRangeEnd]   = useState<Date>(today);
 
-  // Loading and error states
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [comparisonPeriod1Start, setComparisonPeriod1Start] = useState<Date>(daysAgo(60));
+  const [comparisonPeriod1End,   setComparisonPeriod1End]   = useState<Date>(daysAgo(30));
+  const [comparisonPeriod2Start, setComparisonPeriod2Start] = useState<Date>(daysAgo(30));
+  const [comparisonPeriod2End,   setComparisonPeriod2End]   = useState<Date>(today);
 
-  // Trend data
-  const [trendData, setTrendData] = useState<TrendData[]>([]);
-  const [comparisonData, setComparisonData] = useState<{
-    period1: TrendData[];
-    period2: TrendData[];
-  }>({ period1: [], period2: [] });
+  const chartRef = useRef<HTMLDivElement>(null);
 
-  // Initialize page
-  useEffect(() => {
-    fetchTrendData();
-  }, []);
+  const [isLoading,        setIsLoading]        = useState(false);
+  const [isComparing,      setIsComparing]      = useState(false);
+  const [error,            setError]            = useState<string | null>(null);
+  const [trendData,        setTrendData]        = useState<TrendData[]>([]);
+  const [comparisonData,   setComparisonData]   = useState<{ period1: TrendData[]; period2: TrendData[] } | null>(null);
 
-  /**
-   * Formats date for API calls (ISO 8601)
-   * Single Responsibility: Date formatting utility
-   */
-  const formatDateForApi = (date: Date): string => {
-    return date.toISOString().split("T")[0];
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+  const handleUnauthorized = () => {
+    ["jwt", "accessToken", "refreshToken", "userId", "userEmail", "username"].forEach(k =>
+      localStorage.removeItem(k)
+    );
+    navigate("/login");
   };
-  /**
-   * Fetches trend data for the selected date range
-   * Calls API: GET /api/evolution/dashboard?dateRangeStart=...&dateRangeEnd=...
-   */
-  const fetchTrendData = async () => {
+
+  const transformResults = (results: any[]): TrendData[] =>
+    (results || []).map((r: any) => {
+      const acne          = r.severityScores?.acne          || 0;
+      const under_eye_bags = r.severityScores?.underEyeBags || 0;
+      const redness       = r.severityScores?.redness       || 0;
+      return {
+        date: new Date(r.timestamp).toISOString().split("T")[0],
+        overallSeverity: (acne + under_eye_bags + redness) / 3,
+        acne, under_eye_bags, redness,
+      };
+    });
+
+  const fetchRange = async (start: Date, end: Date): Promise<TrendData[]> => {
+    const token = getAuthToken();
+    const res = await fetch(
+      `/api/evolution/dashboard?dateRangeStart=${fmt(start)}&dateRangeEnd=${fmt(end)}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (res.status === 401) { handleUnauthorized(); return []; }
+    if (!res.ok) throw new Error(`Failed to load data (${res.status})`);
+    const json = await res.json();
+    return transformResults(json.data?.analysisResults);
+  };
+
+  const loadTrend = async (start = dateRangeStart, end = dateRangeEnd) => {
     setIsLoading(true);
     setError(null);
-
     try {
-      const token = getAuthToken();
-      const response = await fetch(
-        `/api/evolution/dashboard?dateRangeStart=${formatDateForApi(dateRangeStart)}&dateRangeEnd=${formatDateForApi(dateRangeEnd)}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch metrics: ${response.statusText}`);
-      }
-
-      const apiResponse = await response.json();
-
-      // Transform API response to TrendData format
-      const analysisResults = apiResponse.data?.analysisResults || [];
-      const transformed = analysisResults.map((result: any) => {
-        const acne = result.severityScores?.acne || 0;
-        const inflammation = result.severityScores?.inflammation || 0;
-        const redness = result.severityScores?.redness || 0;
-        const overallSeverity = (acne + inflammation + redness) / 3;
-
-        return {
-          date: new Date(result.timestamp).toISOString().split("T")[0],
-          overallSeverity,
-          acne,
-          inflammation,
-          redness,
-        };
-      });
-
-      setTrendData(transformed);
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to load trend data";
-      setError(errorMsg);
+      setTrendData(await fetchRange(start, end));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load trend data");
       setTrendData([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Fetches trend data for comparison periods
-   */
-  const fetchComparisonData = async () => {
-    setIsLoading(true);
+  const loadComparison = async () => {
+    setIsComparing(true);
     setError(null);
-
     try {
-      const token = getAuthToken();
-
-      // Fetch period 1
-      const response1 = await fetch(
-        `/api/evolution/dashboard?dateRangeStart=${formatDateForApi(comparisonPeriod1Start)}&dateRangeEnd=${formatDateForApi(comparisonPeriod1End)}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
-
-      // Fetch period 2
-      const response2 = await fetch(
-        `/api/evolution/dashboard?dateRangeStart=${formatDateForApi(comparisonPeriod2Start)}&dateRangeEnd=${formatDateForApi(comparisonPeriod2End)}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
-
-      if (!response1.ok || !response2.ok) {
-        throw new Error("Failed to fetch comparison data");
-      }
-
-      // Transform both responses
-      const transformAnalysisResults = (results: any[]) => {
-        return (results || []).map((result: any) => {
-          const acne = result.severityScores?.acne || 0;
-          const inflammation = result.severityScores?.inflammation || 0;
-          const redness = result.severityScores?.redness || 0;
-          const overallSeverity = (acne + inflammation + redness) / 3;
-
-          return {
-            date: new Date(result.timestamp).toISOString().split("T")[0],
-            overallSeverity,
-            acne,
-            inflammation,
-            redness,
-          };
-        });
-      };
-
-      const apiResponse1 = await response1.json();
-      const apiResponse2 = await response2.json();
-
-      setComparisonData({
-        period1: transformAnalysisResults(apiResponse1.data?.analysisResults),
-        period2: transformAnalysisResults(apiResponse2.data?.analysisResults),
-      });
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to load comparison data";
-      setError(errorMsg);
-      setComparisonData({ period1: [], period2: [] });
+      const [p1, p2] = await Promise.all([
+        fetchRange(comparisonPeriod1Start, comparisonPeriod1End),
+        fetchRange(comparisonPeriod2Start, comparisonPeriod2End),
+      ]);
+      setComparisonData({ period1: p1, period2: p2 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load comparison data");
     } finally {
-      setIsLoading(false);
+      setIsComparing(false);
     }
   };
-  /**
-   * Handles date range change with validation
-   * Single Responsibility: Validates and updates date range state
-   */
-  const handleDateRangeChange = async (start: Date, end: Date) => {
-    if (end < start) {
-      setError("End date cannot be before start date");
-      return;
-    }
-    if (end > new Date()) {
-      setError("End date cannot be in the future");
-      return;
-    }
-    setError(null);
+
+  useEffect(() => { loadTrend(); }, []);
+
+  const handleQuickRange = (days: number) => {
+    const start = daysAgo(days);
+    const end   = new Date();
     setDateRangeStart(start);
     setDateRangeEnd(end);
-
-    // Fetch data for new date range
-    setIsLoading(true);
-    try {
-      const token = getAuthToken();
-      const response = await fetch(
-        `/api/evolution/dashboard?dateRangeStart=${formatDateForApi(start)}&dateRangeEnd=${formatDateForApi(end)}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
-      if (!response.ok) throw new Error("Failed to fetch metrics");
-
-      const apiResponse = await response.json();
-      const analysisResults = apiResponse.data?.analysisResults || [];
-      const transformed = analysisResults.map((result: any) => {
-        const acne = result.severityScores?.acne || 0;
-        const inflammation = result.severityScores?.inflammation || 0;
-        const redness = result.severityScores?.redness || 0;
-        const overallSeverity = (acne + inflammation + redness) / 3;
-
-        return {
-          date: new Date(result.timestamp).toISOString().split("T")[0],
-          overallSeverity,
-          acne,
-          inflammation,
-          redness,
-        };
-      });
-
-      setTrendData(transformed);
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to load data";
-      setError(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
+    loadTrend(start, end);
   };
 
-  /**
-   * Switches between Trends and Comparison tabs
-   * Single Responsibility: Tab navigation and data loading
-   */
-  const handleTabChange = async (tab: "trends" | "comparison") => {
-    setActiveTab(tab);
-
-    if (tab === "comparison" && comparisonData.period1.length === 0) {
-      await fetchComparisonData();
-    }
-  };
+  const dateInput = "px-3 py-2 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition w-full";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Page Header */}
-      <div className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-slate-900">
-            Skin Evolution Dashboard
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Track your skin progress over time with visual trends and detailed
-            reports
-          </p>
-        </div>
-      </div>
+    <div className="bg-background min-h-screen">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-7">
 
-      {/* Page Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Error Alert */}
+        {/* Header */}
+        <div>
+          <h2 className="font-display text-4xl sm:text-5xl text-on-surface">Evolution</h2>
+          <p className="text-on-surface-variant text-sm mt-1">Track your skin's progress over time</p>
+        </div>
+
         {error && (
-          <div
-            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg"
-            role="alert"
-            aria-live="polite"
-          >
-            <p className="text-red-700 text-sm font-medium">{error}</p>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        {/* Tab Navigation */}
-        <div
-          className="flex gap-4 mb-8 border-b border-slate-200"
-          role="tablist"
-        >
-          <button
-            onClick={() => handleTabChange("trends")}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === "trends"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-slate-600 hover:text-slate-900"
-            }`}
-            disabled={isLoading}
-            role="tab"
-            aria-selected={activeTab === "trends"}
-            aria-controls="trends-panel"
-            aria-label="View trend graphs over time"
-          >
-            Trend Graphs
-          </button>
-          <button
-            onClick={() => handleTabChange("comparison")}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === "comparison"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-slate-600 hover:text-slate-900"
-            }`}
-            disabled={isLoading}
-            role="tab"
-            aria-selected={activeTab === "comparison"}
-            aria-controls="comparison-panel"
-            aria-label="Compare two time periods"
-          >
-            Compare Periods
-          </button>
+        {/* ── Date range ── */}
+        <div className="bg-surface rounded-2xl border border-skin-border p-5 space-y-4">
+          <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest">Date range</p>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "Last 7 days",  days: 7  },
+              { label: "Last 30 days", days: 30 },
+              { label: "Last 60 days", days: 60 },
+              { label: "Last 90 days", days: 90 },
+            ].map(({ label, days }) => (
+              <button
+                key={days}
+                onClick={() => handleQuickRange(days)}
+                disabled={isLoading}
+                className="px-4 py-2 bg-surface-warm border-2 border-skin-border rounded-xl text-xs font-medium text-on-surface hover:bg-primary/8 hover:border-primary/40 hover:text-primary transition disabled:opacity-40"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-xs text-on-surface-variant mb-1">From</p>
+              <input
+                type="date"
+                value={fmt(dateRangeStart)}
+                max={fmt(dateRangeEnd)}
+                onChange={e => setDateRangeStart(new Date(e.target.value))}
+                className={dateInput}
+              />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-xs text-on-surface-variant mb-1">To</p>
+              <input
+                type="date"
+                value={fmt(dateRangeEnd)}
+                min={fmt(dateRangeStart)}
+                max={fmt(today)}
+                onChange={e => setDateRangeEnd(new Date(e.target.value))}
+                className={dateInput}
+              />
+            </div>
+            <button
+              onClick={() => loadTrend()}
+              disabled={isLoading}
+              className="px-5 py-2 bg-bloom hover:bg-bloom-hover text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-40 transition"
+            >
+              Apply
+            </button>
+          </div>
         </div>
 
-        {/* Loading Spinner */}
-        {isLoading && (
-          <div
-            className="flex items-center justify-center py-12"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <div className="text-center">
-              <div
-                className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
-                aria-hidden="true"
-              ></div>
-              <p className="mt-4 text-slate-600">
-                Loading your skin analysis...
-              </p>
+        {/* ── Trend chart + stats ── */}
+        <div ref={chartRef} className="bg-surface rounded-2xl border border-skin-border p-5">
+          <TrendGraph
+            data={trendData}
+            dateRangeStart={dateRangeStart}
+            dateRangeEnd={dateRangeEnd}
+            isLoading={isLoading}
+            error={null}
+          />
+        </div>
+
+        {/* ── Period comparison ── */}
+        <div className="bg-surface rounded-2xl border border-skin-border p-5 space-y-5">
+          <div>
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-1">Compare periods</p>
+            <p className="text-xs text-on-surface-variant">Select two date ranges to compare your skin progress side by side.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-on-surface">Period 1</p>
+              <input type="date" value={fmt(comparisonPeriod1Start)}
+                max={fmt(comparisonPeriod1End)}
+                onChange={e => setComparisonPeriod1Start(new Date(e.target.value))}
+                className={dateInput} aria-label="Period 1 start" />
+              <p className="text-xs text-on-surface-variant text-center">to</p>
+              <input type="date" value={fmt(comparisonPeriod1End)}
+                min={fmt(comparisonPeriod1Start)} max={fmt(today)}
+                onChange={e => setComparisonPeriod1End(new Date(e.target.value))}
+                className={dateInput} aria-label="Period 1 end" />
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-on-surface">Period 2</p>
+              <input type="date" value={fmt(comparisonPeriod2Start)}
+                max={fmt(comparisonPeriod2End)}
+                onChange={e => setComparisonPeriod2Start(new Date(e.target.value))}
+                className={dateInput} aria-label="Period 2 start" />
+              <p className="text-xs text-on-surface-variant text-center">to</p>
+              <input type="date" value={fmt(comparisonPeriod2End)}
+                min={fmt(comparisonPeriod2Start)} max={fmt(today)}
+                onChange={e => setComparisonPeriod2End(new Date(e.target.value))}
+                className={dateInput} aria-label="Period 2 end" />
             </div>
           </div>
-        )}
 
-        {/* Tab Content */}
-        {!isLoading && (
-          <>
-            {/* Trends Tab */}
-            {activeTab === "trends" && (
-              <div
-                className="space-y-6"
-                id="trends-panel"
-                role="tabpanel"
-                aria-labelledby="trends-tab"
-              >
-                {/* Date Range Filter Controls */}
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-slate-200">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    Select Date Range
-                  </h2>
+          <button
+            onClick={loadComparison}
+            disabled={isComparing}
+            className="px-5 py-2.5 bg-bloom hover:bg-bloom-hover text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md disabled:opacity-40 transition"
+          >
+            {isComparing ? "Comparing…" : "Compare"}
+          </button>
 
-                  {/* Quick Filter Buttons */}
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    <button
-                      onClick={() => {
-                        const start = new Date();
-                        start.setDate(start.getDate() - 7);
-                        handleDateRangeChange(start, new Date());
-                      }}
-                      className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-                      disabled={isLoading}
-                      aria-label="View trends for the last 7 days"
-                    >
-                      Last 7 Days
-                    </button>
-                    <button
-                      onClick={() => {
-                        const start = new Date();
-                        start.setDate(start.getDate() - 30);
-                        handleDateRangeChange(start, new Date());
-                      }}
-                      className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-                      disabled={isLoading}
-                      aria-label="View trends for the last 30 days"
-                    >
-                      Last 30 Days
-                    </button>
-                    {/* TODO: Add custom date range picker */}
-                  </div>
+          {comparisonData && (
+            <PeriodComparison
+              period1Data={comparisonData.period1}
+              period2Data={comparisonData.period2}
+              period1Name={`${comparisonPeriod1Start.toLocaleDateString()} – ${comparisonPeriod1End.toLocaleDateString()}`}
+              period2Name={`${comparisonPeriod2Start.toLocaleDateString()} – ${comparisonPeriod2End.toLocaleDateString()}`}
+              isLoading={isComparing}
+              error={null}
+            />
+          )}
+        </div>
 
-                  <p className="text-sm text-slate-600">
-                    {formatDateForApi(dateRangeStart)} to{" "}
-                    {formatDateForApi(dateRangeEnd)}
-                  </p>
-                </div>
+        {/* ── Export ── */}
+        <div className="bg-surface rounded-2xl border border-skin-border p-5">
+          <p className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-4">Export report</p>
+          <ExportReportButton
+            dateRangeStart={dateRangeStart}
+            dateRangeEnd={dateRangeEnd}
+            isDisabled={isLoading || trendData.length === 0}
+            onExportStart={() => {}}
+            onExportComplete={success => { if (success) setError(null); }}
+            chartRef={chartRef}
+          />
+        </div>
 
-                {/* Trend Graph Component */}
-                <TrendGraph
-                  data={trendData}
-                  dateRangeStart={dateRangeStart}
-                  dateRangeEnd={dateRangeEnd}
-                  isLoading={isLoading}
-                  error={null}
-                />
-
-                {/* Export PDF Button */}
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-slate-200">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    Download Report
-                  </h2>
-                  <ExportReportButton
-                    dateRangeStart={dateRangeStart}
-                    dateRangeEnd={dateRangeEnd}
-                    isDisabled={isLoading || trendData.length === 0}
-                    onExportStart={() => console.log("Starting export...")}
-                    onExportComplete={(success) => {
-                      if (success) {
-                        setError(null);
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Comparison Tab */}
-            {activeTab === "comparison" && (
-              <div
-                className="space-y-6"
-                id="comparison-panel"
-                role="tabpanel"
-                aria-labelledby="comparison-tab"
-              >
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-slate-200">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-6">
-                    Compare Two Periods
-                  </h2>
-
-                  {/* Period Selection Controls */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    {/* Period 1 Controls */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-slate-900">
-                        Period 1
-                      </label>
-                      <input
-                        type="date"
-                        value={
-                          comparisonPeriod1Start.toISOString().split("T")[0]
-                        }
-                        onChange={(e) =>
-                          setComparisonPeriod1Start(new Date(e.target.value))
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        aria-label="Period 1 start date"
-                      />
-                      <p className="text-xs text-slate-600">to</p>
-                      <input
-                        type="date"
-                        value={comparisonPeriod1End.toISOString().split("T")[0]}
-                        onChange={(e) =>
-                          setComparisonPeriod1End(new Date(e.target.value))
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        aria-label="Period 1 end date"
-                      />
-                    </div>
-
-                    {/* Period 2 Controls */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-slate-900">
-                        Period 2
-                      </label>
-                      <input
-                        type="date"
-                        value={
-                          comparisonPeriod2Start.toISOString().split("T")[0]
-                        }
-                        onChange={(e) =>
-                          setComparisonPeriod2Start(new Date(e.target.value))
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        aria-label="Period 2 start date"
-                      />
-                      <p className="text-xs text-slate-600">to</p>
-                      <input
-                        type="date"
-                        value={comparisonPeriod2End.toISOString().split("T")[0]}
-                        onChange={(e) =>
-                          setComparisonPeriod2End(new Date(e.target.value))
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        aria-label="Period 2 end date"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Period Comparison Component */}
-                  <PeriodComparison
-                    period1Data={comparisonData.period1}
-                    period2Data={comparisonData.period2}
-                    period1Name={`${comparisonPeriod1Start.toLocaleDateString()} - ${comparisonPeriod1End.toLocaleDateString()}`}
-                    period2Name={`${comparisonPeriod2Start.toLocaleDateString()} - ${comparisonPeriod2End.toLocaleDateString()}`}
-                    isLoading={isLoading}
-                    error={null}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      </main>
     </div>
   );
 };

@@ -65,7 +65,9 @@ public class UsersController : ControllerBase
             u.SkinType,
             GetFullUrl(u.ProfilePictureUrl),
             u.CreatedAt,
-            u.LastSelfieAt
+            u.LastSelfieAt,
+            u.FirstName,
+            u.LastName
         )).ToList();
 
         return Ok(userDtos);
@@ -100,7 +102,9 @@ public class UsersController : ControllerBase
             user.SkinType,
             GetFullUrl(user.ProfilePictureUrl),
             user.CreatedAt,
-            user.LastSelfieAt
+            user.LastSelfieAt,
+            user.FirstName,
+            user.LastName
         );
     }
 
@@ -527,7 +531,7 @@ public class UsersController : ControllerBase
 
                 return new
                 {
-                    date = dayGroup.Key,
+                    date = dayGroup.Key.ToString("yyyy-MM-dd"),
                     photos = photos_by_angle,
                     isComplete = RequiredSelfieAngles.All(a => dayAngles.Contains(a))
                 };

@@ -26,7 +26,7 @@ interface HeatmapOverlayProps {
 const CONDITION_LABELS: Record<DetectionCondition, string> = {
   acne: "Acne",
   redness: "Redness",
-  under_eye_bags: "Under-eye bags",
+  under_eye_bags: "Dark circles",
 };
 
 function severityLabel(s: number): string {
@@ -71,13 +71,13 @@ export function HeatmapOverlay({
     <div className="space-y-1">
       <div
         ref={containerRef}
-        className="relative rounded-xl overflow-hidden border border-slate-700"
+        className="relative rounded-xl overflow-hidden border border-skin-border"
       >
         <img
           ref={imgRef}
           src={imageUrl}
           alt={`${angleLabel} heatmap`}
-          className="w-full aspect-[4/3] object-cover"
+          className="w-full aspect-[4/3] object-cover block"
           onLoad={updateScale}
         />
 
@@ -145,14 +145,14 @@ export function HeatmapOverlay({
 
         {tooltip && (
           <div
-            className="absolute z-50 px-2 py-1 rounded bg-slate-800 text-white text-[11px] pointer-events-none shadow-lg whitespace-nowrap"
+            className="absolute z-50 px-2 py-1 rounded bg-gray-900 text-white border border-white/10 text-[11px] pointer-events-none shadow-lg whitespace-nowrap"
             style={{ left: tooltip.left, top: tooltip.top }}
           >
             {tooltip.text}
           </div>
         )}
 
-        <p className="text-center text-[11px] py-2 text-on-surface-variant bg-slate-900/60">
+        <p className="absolute bottom-0 inset-x-0 text-center text-[11px] py-1.5 text-white bg-black/30">
           {angleLabel}
         </p>
       </div>

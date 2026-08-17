@@ -57,6 +57,9 @@ namespace SkinProgress.Models.DTOs
 
         /// <summary>Redness severity (0-10 scale)</summary>
         public int Redness { get; set; }
+
+        /// <summary>Under-eye bags / dark circles severity (0-10 scale)</summary>
+        public int UnderEyeBags { get; set; }
     }
 
     /// <summary>

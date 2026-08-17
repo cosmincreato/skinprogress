@@ -12,7 +12,6 @@ namespace SkinProgress.Tests;
 /// <summary>
 /// Property-based tests for <see cref="EncryptionService"/>.
 ///
-/// **Validates: Requirements 26.1**
 /// Property 17: Encryption Round-Trip
 /// For any arbitrary byte array input, encrypting then decrypting must return the original bytes exactly.
 /// </summary>
@@ -34,13 +33,9 @@ public class EncryptionServicePropertyTests
         return new EncryptionService(config);
     }
 
-    // -------------------------------------------------------------------------
-    // Property 17: Encryption Round-Trip
-    // For any byte[] input, Decrypt(Encrypt(input)) == input
-    // -------------------------------------------------------------------------
+    // Property 17: Encryption Round-Trip — for any byte[] input, Decrypt(Encrypt(input)) == input
 
     /// <summary>
-    /// **Validates: Requirements 26.1**
     /// Property 17: Encryption Round-Trip
     /// For any arbitrary byte array (including empty), encrypting then decrypting returns the original bytes.
     /// </summary>
@@ -61,7 +56,6 @@ public class EncryptionServicePropertyTests
     }
 
     /// <summary>
-    /// **Validates: Requirements 26.1**
     /// Property 17 (edge case): Empty byte array round-trips correctly.
     /// </summary>
     [TestMethod]
@@ -76,7 +70,6 @@ public class EncryptionServicePropertyTests
     }
 
     /// <summary>
-    /// **Validates: Requirements 26.1**
     /// AES-GCM uses a random nonce, so two encryptions of the same plaintext must produce different ciphertexts.
     /// </summary>
     [TestMethod]
@@ -98,7 +91,6 @@ public class EncryptionServicePropertyTests
     }
 
     /// <summary>
-    /// **Validates: Requirements 26.1**
     /// Decrypting with a different key must throw (AES-GCM authentication tag mismatch).
     /// </summary>
     [TestMethod]
@@ -136,7 +128,6 @@ public class EncryptionServicePropertyTests
     }
 
     /// <summary>
-    /// **Validates: Requirements 26.1**
     /// String round-trip: EncryptString then DecryptString returns the original string.
     /// </summary>
     [TestMethod]
@@ -154,10 +145,6 @@ public class EncryptionServicePropertyTests
             return decrypted == plaintext;
         }).QuickCheckThrowOnFailure();
     }
-
-    // -------------------------------------------------------------------------
-    // Helper
-    // -------------------------------------------------------------------------
 
     private static bool CollectionsAreEqual(byte[] a, byte[] b)
     {

@@ -60,10 +60,11 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
       initFaceDetection();
     }, [enableFaceDetection]);
 
-    // Start face detection loop when video is ready
+    // Start face detection loop when video is ready and models are loaded
     useEffect(() => {
       if (
         !isReady ||
+        modelsLoading ||
         !videoRef.current ||
         !faceDetectionServiceRef.current ||
         !enableFaceDetection ||
@@ -77,6 +78,11 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
 
       const detectLoop = async () => {
         if (!continuous || !faceDetectionServiceRef.current) return;
+
+        if (!video.videoWidth || !video.videoHeight) {
+          if (continuous) detectionLoopRef.current = requestAnimationFrame(detectLoop);
+          return;
+        }
 
         try {
           const result =
@@ -100,7 +106,7 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
           detectionLoopRef.current = null;
         }
       };
-    }, [isReady, enableFaceDetection, capturedImage]);
+    }, [isReady, modelsLoading, enableFaceDetection, capturedImage]);
 
     useEffect(() => {
       let cancelled = false;
@@ -129,9 +135,13 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
           video.srcObject = stream;
           video.muted = true;
           video.playsInline = true;
+          video.addEventListener(
+            "playing",
+            () => { if (!cancelled) setIsReady(true); },
+            { once: true },
+          );
           video.play().catch(() => {});
         }
-        if (!cancelled) setIsReady(true);
       };
 
       const startCamera = async () => {
@@ -262,7 +272,7 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
     return (
       <div
         ref={containerRef}
-        className="rounded-2xl overflow-hidden border border-slate-700 bg-black"
+        className="rounded-2xl overflow-hidden border border-skin-border bg-black"
       >
         <div className="relative aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
           {!isReady && !capturedImage && (
@@ -315,7 +325,7 @@ const SelfieCamera = forwardRef<SelfieCameraHandle, SelfieCameraProps>(
             type="button"
             onClick={capture}
             disabled={!isReady}
-            className="block w-full py-4 text-white font-semibold transition-all rounded-none rounded-b-2xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="block w-full py-4 text-white font-semibold transition-all rounded-none rounded-b-2xl bg-bloom hover:bg-bloom-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isReady ? "Capture Selfie" : "Loading..."}
           </button>

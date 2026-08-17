@@ -1,10 +1,23 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-/**
- * Reset Password Component
- * Allows users to reset their password using a token sent to their email
- */
+const Shell = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+      <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-primary/8 blur-3xl" />
+      <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-secondary/10 blur-3xl" />
+    </div>
+    <div className="relative w-full max-w-md">
+      <div className="text-center mb-10">
+        <h1 className="font-display text-4xl text-primary tracking-wide">SkinProgress</h1>
+      </div>
+      <div className="bg-surface rounded-3xl border border-skin-border shadow-sm p-8">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
 export function ResetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -18,65 +31,26 @@ export function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-
-    // Validation
-    if (!token.trim()) {
-      setError("Reset code is required");
-      return;
-    }
-
-    if (token.trim().length !== 6) {
-      setError("Reset code must be 6 characters");
-      return;
-    }
-
-    if (!newPassword) {
-      setError("New password is required");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters long");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (!/^(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      setError("Password must contain at least one uppercase letter and one number");
-      return;
-    }
-
+    if (!token.trim()) { setError("Reset code is required"); return; }
+    if (token.trim().length !== 6) { setError("Reset code must be 6 characters"); return; }
+    if (!newPassword) { setError("New password is required"); return; }
+    if (newPassword.length < 8) { setError("Password must be at least 8 characters long"); return; }
+    if (newPassword !== confirmPassword) { setError("Passwords do not match"); return; }
+    if (!/^(?=.*[A-Z])(?=.*\d)/.test(newPassword)) { setError("Password must contain at least one uppercase letter and one number"); return; }
     try {
       setIsLoading(true);
       const response = await fetch("/api/auth/email/reset-password", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token: token.trim(),
-          newPassword,
-          confirmPassword,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token.trim(), newPassword, confirmPassword }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        setError(data?.message || "Failed to reset password");
-        return;
-      }
-
+      if (!response.ok) { setError(data?.message || "Failed to reset password"); return; }
       setResetSuccess(true);
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An error occurred";
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -84,162 +58,98 @@ export function ResetPassword() {
 
   if (resetSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-8 max-w-md w-full">
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-green-500/20 border border-green-500/30 rounded-full mb-4">
-              <svg
-                className="w-6 h-6 text-green-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-on-surface mb-2">Password Reset</h1>
-            <p className="text-on-surface-variant">
-              Your password has been successfully reset
-            </p>
+      <Shell>
+        <div className="text-center">
+          <div className="w-14 h-14 bg-secondary/15 rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg className="w-7 h-7 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-300">
-              You can now login with your new password.
-            </p>
-          </div>
-
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 transition-all duration-300"
-          >
-            Go to Login
+          <h2 className="font-display text-2xl text-on-surface mb-2">Password updated</h2>
+          <p className="text-on-surface-variant text-sm mb-6">You can now sign in with your new password.</p>
+          <button onClick={() => navigate("/login")} className="w-full bg-primary hover:bg-primary-hover text-on-primary py-3 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md">
+            Go to login
           </button>
         </div>
-      </div>
+      </Shell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-surface/50 backdrop-blur border border-slate-700 rounded-2xl p-8 max-w-md w-full">
-        <h1 className="text-3xl font-bold text-on-surface mb-2">Reset Password</h1>
-        <p className="text-on-surface-variant mb-6">
-          Enter your new password below
-        </p>
+    <Shell>
+      <h2 className="font-display text-2xl text-on-surface mb-1">Reset password</h2>
+      <p className="text-on-surface-variant text-sm mb-7">Enter your reset code and choose a new password</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Token Field */}
-          <div>
-            <label
-              htmlFor="token"
-              className="block text-sm font-medium text-on-surface mb-1"
-            >
-              Reset Code
-            </label>
-            <input
-              id="token"
-              type="text"
-              value={token}
-              onChange={(e) => setToken(e.target.value.toUpperCase())}
-              placeholder="E.g. ABC123"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50 font-mono text-lg tracking-widest uppercase"
-              maxLength={6}
-              disabled={isLoading}
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="token" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Reset code</label>
+          <input
+            id="token" type="text" value={token}
+            onChange={e => setToken(e.target.value.toUpperCase())}
+            placeholder="ABC123"
+            className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
+            maxLength={6} disabled={isLoading}
+          />
+        </div>
 
-          {/* New Password Field */}
-          <div>
-            <label
-              htmlFor="newPassword"
-              className="block text-sm font-medium text-on-surface mb-1"
-            >
-              New Password
-            </label>
-            <input
-              id="newPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
-            />
-          </div>
-
-          {/* Confirm Password Field */}
-          <div>
-            <label
-              htmlFor="confirmPassword"
-              className="block text-sm font-medium text-on-surface mb-1"
-            >
-              Confirm Password
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter your password"
-              className="w-full px-4 py-2 border border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-slate-800/50 text-on-surface placeholder-on-surface-variant/50"
-              disabled={isLoading}
-            />
-          </div>
-
-          {/* Password Requirements */}
-          <div className="bg-slate-700/30 border border-slate-600 rounded-lg p-3">
-            <p className="text-xs font-semibold text-on-surface-variant mb-2">
-              Password must contain:
-            </p>
-            <ul className="text-xs text-on-surface-variant space-y-1">
-              <li className={newPassword.length >= 8 ? "text-green-400" : ""}>
-                ✓ At least 8 characters
-              </li>
-              <li
-                className={/[A-Z]/.test(newPassword) ? "text-green-400" : ""}
-              >
-                ✓ At least one uppercase letter
-              </li>
-              <li className={/\d/.test(newPassword) ? "text-green-400" : ""}>
-                ✓ At least one number
-              </li>
-            </ul>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-              <p className="text-sm text-red-300">{error}</p>
+        <div>
+          <label htmlFor="newPassword" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">New password</label>
+          <input
+            id="newPassword" type="password" value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            placeholder="At least 8 characters"
+            className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
+            disabled={isLoading}
+          />
+          {newPassword && (
+            <div className="mt-2.5 space-y-1.5">
+              {[
+                { ok: newPassword.length >= 8, label: "At least 8 characters" },
+                { ok: /[A-Z]/.test(newPassword), label: "One uppercase letter" },
+                { ok: /[0-9]/.test(newPassword), label: "One number" },
+              ].map(({ ok, label }) => (
+                <div key={label} className={`flex items-center gap-2 text-xs ${ok ? "text-green-600" : "text-on-surface-variant/60"}`}>
+                  {ok ? (
+                    <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-on-surface-variant/30" />
+                  )}
+                  {label}
+                </div>
+              ))}
             </div>
           )}
+        </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
+        <div>
+          <label htmlFor="confirmPassword" className="block text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2">Confirm password</label>
+          <input
+            id="confirmPassword" type="password" value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full px-4 py-3 bg-surface-warm border border-skin-border rounded-xl text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-          >
-            {isLoading ? "Resetting..." : "Reset Password"}
-          </button>
-        </form>
+          />
+          {confirmPassword && newPassword !== confirmPassword && (
+            <p className="mt-1.5 text-xs text-red-500">Passwords do not match</p>
+          )}
+        </div>
 
-        {/* Login Link */}
-        <p className="text-center text-sm text-on-surface-variant mt-6">
-          <button
-            onClick={() => navigate("/login")}
-            className="text-purple-300 hover:text-purple-200 font-medium"
-          >
-            Back to login
-          </button>
-        </p>
-      </div>
-    </div>
+        {error && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3"><p className="text-sm text-red-700">{error}</p></div>}
+
+        <button type="submit" disabled={isLoading}
+          className="w-full bg-bloom hover:bg-bloom-hover text-white py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed">
+          {isLoading ? "Resetting…" : "Reset password"}
+        </button>
+      </form>
+
+      <p className="text-center text-sm text-on-surface-variant mt-6">
+        Remember your password?{" "}
+        <button onClick={() => navigate("/login")} className="text-primary hover:text-primary-hover font-medium transition">Back to login</button>
+      </p>
+    </Shell>
   );
 }
 

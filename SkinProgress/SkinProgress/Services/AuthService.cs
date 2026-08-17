@@ -89,6 +89,8 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(sub))
             return null;
 
+        var (firstName, lastName) = SeparateFullName(name);
+
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.ExternalId == sub || (u.Email == email && u.Provider == "Google"));
 
@@ -96,13 +98,21 @@ public class AuthService : IAuthService
         {
             if (user.Provider != "Google")
                 return null; // Email already used with password
+
+            // Update firstName/lastName if not already set
+            if (string.IsNullOrEmpty(user.FirstName) && !string.IsNullOrWhiteSpace(name))
+            {
+                user.FirstName = firstName;
+                user.LastName = lastName;
+                await _context.SaveChangesAsync();
+            }
+
             return new AuthResponseDto(GenerateJwtToken(user), user.Username, user.Email);
         }
 
         var existingByEmail = await _context.Users.AnyAsync(u => u.Email == email);
         if (existingByEmail)
             return null; // Email registered locally, use password
-
         var baseUsername = !string.IsNullOrWhiteSpace(name)
             ? SanitizeUsername(name)
             : email.Split('@')[0];
@@ -116,6 +126,8 @@ public class AuthService : IAuthService
             Provider = "Google",
             ExternalId = sub,
             Role = UserRoles.User,
+            FirstName = firstName,
+            LastName = lastName,
             ProfilePictureUrl = !string.IsNullOrEmpty(picture) ? picture : "/uploads/default.png"
         };
 
@@ -129,6 +141,20 @@ public class AuthService : IAuthService
     {
         var s = new string(name.Where(c => char.IsLetterOrDigit(c) || c == '_' || c == '-').ToArray());
         return string.IsNullOrEmpty(s) ? "user" : s.Length > 100 ? s[..100] : s;
+    }
+
+    private static (string? firstName, string? lastName) SeparateFullName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return (null, null);
+
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => (null, null),
+            1 => (parts[0], null),
+            _ => (parts[0], string.Join(" ", parts[1..]))
+        };
     }
 
     private async Task<string> EnsureUniqueUsernameAsync(string baseUsername, string sub)
@@ -146,7 +172,7 @@ public class AuthService : IAuthService
         var user = await _context.Users.FindAsync(Guid.Parse(userId));
         if (user == null) return null;
 
-        return new UserDto(user.Id, user.Email, user.Username, user.Role, user.SkinType, user.ProfilePictureUrl, user.CreatedAt, user.LastSelfieAt);
+        return new UserDto(user.Id, user.Email, user.Username, user.Role, user.SkinType, user.ProfilePictureUrl, user.CreatedAt, user.LastSelfieAt, user.FirstName, user.LastName);
     }
 
     private string GenerateJwtToken(User user)

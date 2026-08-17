@@ -104,10 +104,7 @@ public class EmailService : IEmailService
     }
 
     /// <summary>
-    /// Generic email send method.
-    /// Delegates to actual email provider based on configuration.
-    /// Current implementation: logs email (for development).
-    /// TODO: Integrate with SendGrid, SMTP, or other provider.
+    /// Sends via the provider configured under "Email:Provider" (Mailpit/SMTP in dev, console fallback).
     /// </summary>
     public async Task<bool> SendEmailAsync(string to, string subject, string htmlBody)
     {

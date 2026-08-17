@@ -8,5 +8,7 @@ public record UserDto(
     string SkinType,
     string ProfilePictureUrl,
     DateTime CreatedAt,
-    DateTime? LastSelfieAt
+    DateTime? LastSelfieAt,
+    string? FirstName,
+    string? LastName
 );
