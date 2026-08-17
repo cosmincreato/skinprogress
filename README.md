@@ -77,7 +77,3 @@ cd ai-service && pytest
 - **Habit tracking** — streaks, badges, missions tied to daily skincare routines
 - **Chatbot** — RAG-backed skincare Q&A over the user's own analysis history via Qdrant + Ollama
 - **GDPR tooling** — audit logging and data export/deletion requests
-
-## License
-
-Not licensed for reuse — all rights reserved unless a LICENSE file is added.
